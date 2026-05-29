@@ -1,0 +1,383 @@
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{background:#0a0a0a;color:#e8e6e0;font-family:'DM Sans',sans-serif;padding:1.5rem;border-radius:12px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:1.25rem}
+.branding .title{font-size:17px;font-weight:500;color:#f0ede8;letter-spacing:-0.2px}
+.branding .sub{font-size:12px;color:#555;margin-top:3px;font-weight:300}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctrl-label{font-size:11px;color:#555;font-weight:300}
+input[type=date]{background:#141414;border:1px solid #222;border-radius:7px;padding:5px 10px;font-size:12px;color:#c8c5bf;font-family:'DM Sans',sans-serif;outline:none}
+.btn{background:#141414;border:1px solid #222;border-radius:7px;padding:5px 13px;font-size:12px;cursor:pointer;color:#a8a5a0;font-family:'DM Sans',sans-serif;transition:all 0.15s}
+.btn:hover{background:#1e1e1e;color:#e8e6e0;border-color:#333}
+.btn.accent{background:#1a2a1a;border-color:#2a4a2a;color:#6fcf6f}
+.btn.accent:hover{background:#1f331f}
+.week-pill{font-size:11px;font-weight:500;color:#666;background:#111;border:1px solid #1e1e1e;border-radius:20px;padding:4px 12px;font-family:'DM Mono',monospace}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.leg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#555;font-weight:300}
+.leg-badge{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;border:1px solid transparent}
+.b-D6{background:#0d1f35;color:#5ba3e8;border-color:#163557}
+.b-D7{background:#0a1a2e;color:#3d8fd6;border-color:#112544}
+.b-S8{background:#0d200d;color:#5cbf5c;border-color:#163a16}
+.b-S9{background:#0a190a;color:#4aad4a;border-color:#112811}
+.b-S10{background:#1f1400;color:#c8870a;border-color:#332000}
+.b-N7{background:#1a0a2e;color:#a07de0;border-color:#2a1244}
+.b-HOL{background:#2a0a0a;color:#f07070;border-color:#5a1a1a}
+.b-VAC{background:#0a1a2a;color:#70c8f0;border-color:#1a4a6a}
+.b-OFF{background:#111;color:#333;border-color:#1a1a1a}
+.summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem}
+.sum{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px 16px;min-width:90px}
+.sum .val{font-size:22px;font-weight:500;color:#f0ede8;font-family:'DM Mono',monospace;line-height:1}
+.sum .lbl{font-size:10px;color:#444;margin-top:4px;font-weight:300;text-transform:uppercase;letter-spacing:0.5px}
+.sum.ok .val{color:#6fcf6f}
+.sum.warn .val{color:#c8870a}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #1a1a1a}
+table{border-collapse:collapse;width:100%;min-width:860px;font-size:11px;font-family:'DM Sans',sans-serif}
+thead tr th{background:#111;border-bottom:1px solid #222;padding:8px 6px;font-weight:400;color:#555;font-size:10px;text-align:center;white-space:nowrap}
+thead tr th.rn-h{text-align:left;min-width:145px;position:sticky;left:0;z-index:2;background:#111;border-right:1px solid #222;padding-left:12px}
+thead tr th .dname{font-size:11px;font-weight:500;color:#888}
+thead tr th .ddate{font-size:10px;color:#3a3a3a;font-family:'DM Mono',monospace;margin-top:1px}
+thead tr th.wk1{border-top:2px solid #1a3050}
+thead tr th.wk2{border-top:2px solid #1a3020}
+tbody tr{border-bottom:1px solid #141414;transition:background 0.1s}
+tbody tr:hover{background:#0f0f0f}
+tbody tr td{padding:5px 6px;text-align:center;vertical-align:middle}
+tbody tr td.rn-col{text-align:left;position:sticky;left:0;z-index:1;background:#0a0a0a;border-right:1px solid #1a1a1a;padding-left:12px}
+tbody tr:hover td.rn-col{background:#0f0f0f}
+.rn-name{cursor:pointer;font-weight:400;color:#c8c5bf;font-size:12px}
+.rn-name:hover{color:#f0ede8}
+.rn-grp{font-size:9px;margin-left:4px;font-family:'DM Mono',monospace;font-weight:500}
+.sc{cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:3px 6px;border-radius:4px;display:inline-block;min-width:32px;transition:opacity 0.1s;border:1px solid transparent}
+.sc:hover{opacity:0.7}
+.sc.s-D6{background:#0d1f35;color:#5ba3e8;border-color:#163557}
+.sc.s-D7{background:#0a1a2e;color:#3d8fd6;border-color:#112544}
+.sc.s-S8{background:#0d200d;color:#5cbf5c;border-color:#163a16}
+.sc.s-S9{background:#0a190a;color:#4aad4a;border-color:#112811}
+.sc.s-S10{background:#1f1400;color:#c8870a;border-color:#332000}
+.sc.s-N7{background:#1a0a2e;color:#a07de0;border-color:#2a1244}
+.sc.s-HOL{background:#2a0a0a;color:#f07070;border-color:#5a1a1a}
+.sc.s-VAC{background:#0a1a2a;color:#70c8f0;border-color:#1a4a6a}
+.sc.s-OFF{background:transparent;color:#252525;border-color:transparent;font-size:9px}
+.count-row td{background:#0d0d0d;border-top:1px solid #222;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#444;padding:5px 6px;text-align:center}
+.count-row td.lbl-c{text-align:left;color:#333;padding-left:12px;font-size:10px;position:sticky;left:0;background:#0d0d0d;border-right:1px solid #1a1a1a}
+.count-row td.day-c{color:#3d8fd6}
+.count-row td.ngt-c{color:#a07de0}
+.count-row td.tot-c{color:#666}
+.sep{background:#0d0d0d!important;border-left:1px solid #1a1a1a;border-right:1px solid #1a1a1a}
+.wk-num{font-family:'DM Mono',monospace;font-size:11px;color:#555;font-weight:500}
+.wk-ok{color:#6fcf6f!important}
+.wk-warn{color:#c8870a!important}
+.modal-wrap{display:none;position:absolute;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.82);border-radius:12px;min-height:500px}
+.modal-wrap.open{display:flex}
+.modal{background:#111;border:1px solid #222;border-radius:12px;padding:1.25rem;min-width:270px;max-width:340px}
+.modal h3{font-size:13px;font-weight:500;color:#e8e6e0;margin-bottom:1rem}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem}
+.mbtn{padding:8px 6px;border:1px solid #222;border-radius:6px;background:#141414;cursor:pointer;font-size:11px;font-weight:500;color:#888;font-family:'DM Mono',monospace;transition:all 0.12s;text-align:center}
+.mbtn:hover{background:#1a1a1a;color:#c8c5bf}
+.mbtn.sel{border-color:#2a4060;background:#0d1f35;color:#5ba3e8}
+.mbtn[data-s=HOL].sel{border-color:#5a1a1a;background:#2a0a0a;color:#f07070}
+.mbtn[data-s=VAC].sel{border-color:#1a4a6a;background:#0a1a2a;color:#70c8f0}
+.mbtn[data-s=OFF].sel{border-color:#333;background:#1a1a1a;color:#888}
+.mactions{display:flex;gap:8px;justify-content:flex-end}
+.ninput{width:100%;background:#141414;border:1px solid #222;border-radius:6px;padding:6px 10px;font-size:12px;color:#c8c5bf;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px}
+.gsel{width:100%;background:#141414;border:1px solid #222;border-radius:6px;padding:6px 10px;font-size:12px;color:#c8c5bf;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:1rem}
+.slbl{font-size:10px;color:#444;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;font-weight:300}
+.tracker-section{margin-top:2rem}
+.tracker-title{font-size:13px;font-weight:500;color:#888;margin-bottom:0.75rem;letter-spacing:0.2px}
+.tracker-wrap{border-radius:10px;border:1px solid #1a1a1a;overflow:hidden}
+.tracker-wrap table{min-width:unset;width:100%}
+.tracker-wrap thead th{background:#111;border-bottom:1px solid #222;padding:8px 12px;font-size:10px;font-weight:400;color:#555;text-align:center}
+.tracker-wrap thead th.tn{text-align:left;position:sticky;left:0;background:#111}
+.tracker-wrap tbody tr{border-bottom:1px solid #111}
+.tracker-wrap tbody tr:hover{background:#0f0f0f}
+.tracker-wrap tbody td{padding:7px 12px;font-size:12px;text-align:center;font-family:'DM Mono',monospace}
+.tracker-wrap tbody td.tn{text-align:left;position:sticky;left:0;background:#0a0a0a;color:#c8c5bf;font-family:'DM Sans',sans-serif;font-size:12px}
+.tracker-wrap tbody tr:hover td.tn{background:#0f0f0f}
+.hol-val{color:#f07070;font-weight:500}
+.vac-val{color:#70c8f0;font-weight:500}
+.hol-used{font-size:10px;color:#7a3030;margin-left:4px}
+.vac-used{font-size:10px;color:#2a6a8a;margin-left:4px}
+.bal-low{color:#c8870a!important}
+.bal-neg{color:#e05050!important}
+.tracker-note{font-size:11px;color:#444;margin-top:8px;font-weight:300}
+.bal-input{background:#141414;border:1px solid #1e1e1e;border-radius:5px;padding:3px 6px;font-size:12px;color:#c8c5bf;font-family:'DM Mono',monospace;width:52px;text-align:center;outline:none}
+.bal-input:focus{border-color:#333}
+</style>
+
+<div class="app" id="appRoot">
+<h2 class="sr-only">RN rotating schedule with holiday and vacation tracker</h2>
+<div class="topbar">
+  <div class="branding">
+    <div class="title">RN Rotating Schedule</div>
+    <div class="sub">19 nurses · exactly 7 shifts per 2-week cycle · min 8 day slots per day</div>
+  </div>
+  <div class="controls">
+    <span class="ctrl-label">Start</span>
+    <input type="date" id="startDate">
+    <button class="btn" onclick="prev()"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
+    <span class="week-pill" id="weekLabel">—</span>
+    <button class="btn" onclick="next()"><i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+    <button class="btn accent" onclick="regen()"><i class="ti ti-refresh" aria-hidden="true"></i> Regenerate</button>
+  </div>
+</div>
+
+<div class="legend">
+  <span class="leg"><span class="leg-badge b-D6">D6</span>Day 6am</span>
+  <span class="leg"><span class="leg-badge b-D7">D7</span>Day 7am</span>
+  <span class="leg"><span class="leg-badge b-S8">S8</span>Eve 8</span>
+  <span class="leg"><span class="leg-badge b-S9">S9</span>Eve 9</span>
+  <span class="leg"><span class="leg-badge b-S10">S10</span>Eve 10</span>
+  <span class="leg"><span class="leg-badge b-N7">N7</span>Night</span>
+  <span class="leg"><span class="leg-badge b-HOL">Hol</span>Holiday</span>
+  <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
+  <span class="leg"><span class="leg-badge b-OFF">—</span>Off</span>
+  <span class="leg" style="margin-left:8px"><span style="color:#5ba3e8;font-weight:500">&#9632; Group A</span></span>
+  <span class="leg"><span style="color:#5cbf5c;font-weight:500">&#9632; Group B</span></span>
+</div>
+
+<div class="summary-row" id="sumBar"></div>
+
+<div style="position:relative">
+  <div class="tbl-wrap"><table id="tbl"></table></div>
+  <div class="modal-wrap" id="cellModal">
+    <div class="modal">
+      <h3 id="mTitle">Edit shift</h3>
+      <div class="mgrid" id="mOpts"></div>
+      <div class="mactions">
+        <button class="btn" onclick="closeCell()">Cancel</button>
+        <button class="btn accent" onclick="saveCell()">Save</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-wrap" id="nameModal">
+    <div class="modal">
+      <h3>Edit RN</h3>
+      <div class="slbl">Name</div>
+      <input class="ninput" id="nInput" type="text">
+      <div class="slbl">Group</div>
+      <select class="gsel" id="gSel"><option value="A">Group A</option><option value="B">Group B</option></select>
+      <div class="mactions">
+        <button class="btn" onclick="closeNameM()">Cancel</button>
+        <button class="btn accent" onclick="saveName()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tracker-section">
+  <div class="tracker-title"><i class="ti ti-calendar-event" aria-hidden="true" style="font-size:14px;vertical-align:-2px;margin-right:6px"></i>Holiday &amp; Vacation balances</div>
+  <div class="tracker-wrap"><table id="trackerTbl"></table></div>
+  <div class="tracker-note">Balances are editable. Used counts update automatically as Hol / Vac are assigned in the schedule above.</div>
+</div>
+</div>
+
+<script>
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const DAY_TYPES=['D6','D7','S8','S9','S10'];
+const ALL_TYPES=['D6','D7','S8','S9','S10','N7','HOL','VAC','OFF'];
+const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',OFF:'Day off'};
+const DAILY_MIN=[
+  {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
+  {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}
+];
+
+let names=Array.from({length:19},(_,i)=>`RN ${i+1}`);
+let groups=Array.from({length:19},(_,i)=>i<10?'A':'B');
+let holBal=Array(19).fill(14);
+let vacBal=Array(19).fill(21);
+let cycleOffset=0,seed=Date.now(),sched=null;
+let mRn=null,mDay=null,mSel=null,mEditIdx=null;
+
+function getMonday(d){const dt=new Date(d);const dy=dt.getDay();dt.setDate(dt.getDate()+(dy===0?-6:1-dy));dt.setHours(0,0,0,0);return dt;}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function fmt(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
+function mkRng(s){let x=s>>>0||1;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return(x>>>0)/0x100000000;};}
+function shuffleArr(a,rng){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
+
+function streak(sh,i,d){
+  let b=0,a=0;
+  for(let x=d-1;x>=0&&sh[i][x]!=='OFF'&&sh[i][x]!=='HOL'&&sh[i][x]!=='VAC';x--)b++;
+  for(let x=d+1;x<14&&sh[i][x]!=='OFF'&&sh[i][x]!=='HOL'&&sh[i][x]!=='VAC';x++)a++;
+  return b+a;
+}
+
+function buildSchedule(){
+  const si=document.getElementById('startDate').value;
+  const wStart=getMonday(si?new Date(si):new Date());
+  const base=addDays(wStart,cycleOffset*14);
+  const days14=Array.from({length:14},(_,i)=>addDays(base,i));
+  const rng=mkRng(seed^(cycleOffset*0x9e3779));
+  const sh=Array.from({length:19},()=>Array(14).fill('OFF'));
+
+  const aIdxs=[0,1,2,3,4,5,6,7,8,9];
+  const bIdxs=[10,11,12,13,14,15,16,17,18];
+  const aPairStart=(Math.abs(cycleOffset)*2)%aIdxs.length;
+  const bPairStart=(Math.abs(cycleOffset)*2)%bIdxs.length;
+  const nightA=[aIdxs[aPairStart],aIdxs[(aPairStart+1)%aIdxs.length]];
+  const nightB=[bIdxs[bPairStart%bIdxs.length],bIdxs[(bPairStart+1)%bIdxs.length]];
+  const nightSet=new Set([...nightA,...nightB]);
+
+  for(const i of nightA){[0,1,5,6].forEach(d=>sh[i][d]='N7');[9,10,11].forEach(d=>sh[i][d]='N7');}
+  for(const i of nightB){[2,3,4].forEach(d=>sh[i][d]='N7');[7,8,12,13].forEach(d=>sh[i][d]='N7');}
+
+  function assignWeek(week){
+    const base7=week*7;
+    const quota=Array(19).fill(0);
+    for(let i=0;i<19;i++){
+      if(nightSet.has(i)){quota[i]=0;}
+      else{const isA=groups[i]==='A';quota[i]=(isA?(week===0?4:3):(week===0?3:4));}
+    }
+    const mandatory=[];
+    for(let d=0;d<7;d++){
+      const need=DAILY_MIN[d];
+      for(const[type,cnt]of Object.entries(need))for(let c=0;c<cnt;c++)mandatory.push({d:base7+d,type});
+    }
+    for(const slot of shuffleArr(mandatory,rng)){
+      const eligible=shuffleArr(Array.from({length:19},(_,i)=>i).filter(i=>{
+        if(nightSet.has(i))return false;
+        if(sh[i][slot.d]!=='OFF')return false;
+        if(quota[i]<=0)return false;
+        if(streak(sh,i,slot.d)>=3)return false;
+        return true;
+      }),rng);
+      if(eligible.length>0){sh[eligible[0]][slot.d]=slot.type;quota[eligible[0]]--;}
+    }
+    let changed=true,passes=0;
+    while(changed&&passes<60){
+      changed=false;passes++;
+      for(const i of shuffleArr(Array.from({length:19},(_,i)=>i).filter(i=>!nightSet.has(i)&&quota[i]>0),rng)){
+        const avail=shuffleArr(Array.from({length:7},(_,d)=>base7+d).filter(d=>sh[i][d]==='OFF'&&streak(sh,i,d)<3),rng);
+        if(!avail.length)continue;
+        sh[i][avail[0]]=shuffleArr(DAY_TYPES,rng)[0];
+        quota[i]--;changed=true;
+      }
+    }
+  }
+  assignWeek(0);assignWeek(1);
+  sched={days:days14,sh,weekStart:base};
+}
+
+function countForRn(i,type){return sched?sched.sh[i].filter(s=>s===type).length:0;}
+
+function renderTable(){
+  const{days,sh,weekStart}=sched;
+  document.getElementById('weekLabel').textContent=`${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
+  const si=document.getElementById('startDate');
+  if(!si.value){const y=weekStart.getFullYear(),m=String(weekStart.getMonth()+1).padStart(2,'0'),d=String(weekStart.getDate()).padStart(2,'0');si.value=`${y}-${m}-${d}`;}
+
+  let h='<thead><tr><th class="rn-h">RN</th>';
+  for(let d=0;d<14;d++)h+=`<th class="${d<7?'wk1':'wk2'}"><div class="dname">${DAYS[d%7]}</div><div class="ddate">${fmt(days[d])}</div></th>`;
+  h+='<th class="sep" style="font-size:10px;color:#444;min-width:30px">W1</th><th class="sep" style="font-size:10px;color:#444;min-width:30px">W2</th><th class="sep" style="font-size:10px;color:#444;min-width:36px">Total</th></tr></thead><tbody>';
+
+  let allOk=true;
+  for(let i=0;i<19;i++){
+    const gc=groups[i]==='A'?'#5ba3e8':'#5cbf5c';
+    const w1=sh[i].slice(0,7).filter(s=>s!=='OFF'&&s!=='HOL'&&s!=='VAC').length;
+    const w2=sh[i].slice(7,14).filter(s=>s!=='OFF'&&s!=='HOL'&&s!=='VAC').length;
+    const tot=w1+w2;
+    const ok=tot===7;
+    if(!ok)allOk=false;
+    const wc=ok?'wk-ok':'wk-warn';
+    h+=`<tr><td class="rn-col"><span class="rn-name" onclick="openNameM(${i})">${names[i]}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
+    for(let d=0;d<14;d++){const s=sh[i][d];h+=`<td onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+    h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
+  }
+
+  h+='<tr class="count-row"><td class="lbl-c">Day shifts</td>';
+  for(let d=0;d<14;d++){h+=`<td class="day-c">${Array.from({length:19},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length}</td>`;}
+  h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
+
+  h+='<tr class="count-row"><td class="lbl-c">Night shifts</td>';
+  for(let d=0;d<14;d++){h+=`<td class="ngt-c">${Array.from({length:19},(_,i)=>i).filter(i=>sh[i][d]==='N7').length}</td>`;}
+  h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
+
+  h+='<tr class="count-row"><td class="lbl-c">Total per day</td>';
+  for(let d=0;d<14;d++){h+=`<td class="tot-c">${Array.from({length:19},(_,i)=>i).filter(i=>sh[i][d]!=='OFF').length}</td>`;}
+  h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr></tbody>';
+
+  document.getElementById('tbl').innerHTML=h;
+
+  const w1t=Array.from({length:19},(_,i)=>sh[i].slice(0,7).filter(s=>s!=='OFF'&&s!=='HOL'&&s!=='VAC').length).reduce((a,b)=>a+b,0);
+  const w2t=Array.from({length:19},(_,i)=>sh[i].slice(7,14).filter(s=>s!=='OFF'&&s!=='HOL'&&s!=='VAC').length).reduce((a,b)=>a+b,0);
+  const nt=Array.from({length:19},(_,i)=>sh[i].filter(s=>s==='N7').length).reduce((a,b)=>a+b,0);
+  const comp=Array.from({length:19},(_,i)=>sh[i].filter(s=>s!=='OFF'&&s!=='HOL'&&s!=='VAC').length).filter(n=>n===7).length;
+  document.getElementById('sumBar').innerHTML=`
+    <div class="sum"><div class="val">19</div><div class="lbl">Total RNs</div></div>
+    <div class="sum"><div class="val">${w1t}</div><div class="lbl">Week 1</div></div>
+    <div class="sum"><div class="val">${w2t}</div><div class="lbl">Week 2</div></div>
+    <div class="sum"><div class="val">${nt}</div><div class="lbl">Nights</div></div>
+    <div class="sum ${allOk?'ok':'warn'}"><div class="val">${comp}/19</div><div class="lbl">RNs at 7</div></div>
+  `;
+
+  renderTracker();
+}
+
+function renderTracker(){
+  let h='<thead><tr><th class="tn">RN</th>';
+  h+='<th style="color:#f07070">Hol balance</th>';
+  h+='<th style="color:#f07070">Hol used</th>';
+  h+='<th style="color:#f07070">Hol remaining</th>';
+  h+='<th style="color:#70c8f0">Vac balance</th>';
+  h+='<th style="color:#70c8f0">Vac used</th>';
+  h+='<th style="color:#70c8f0">Vac remaining</th>';
+  h+='</tr></thead><tbody>';
+
+  for(let i=0;i<19;i++){
+    const gc=groups[i]==='A'?'#5ba3e8':'#5cbf5c';
+    const holUsed=countForRn(i,'HOL');
+    const vacUsed=countForRn(i,'VAC');
+    const holRem=holBal[i]-holUsed;
+    const vacRem=vacBal[i]-vacUsed;
+    const holRemCls=holRem<0?'bal-neg':holRem<=2?'bal-low':'hol-val';
+    const vacRemCls=vacRem<0?'bal-neg':vacRem<=3?'bal-low':'vac-val';
+    h+=`<tr>
+      <td class="tn"><span style="color:${gc};font-size:9px;font-family:'DM Mono',monospace;margin-right:4px">${groups[i]}</span>${names[i]}</td>
+      <td><input class="bal-input" type="number" min="0" max="99" value="${holBal[i]}" onchange="setHolBal(${i},this.value)" style="color:#f07070"></td>
+      <td class="hol-val">${holUsed}</td>
+      <td class="${holRemCls}">${holRem}</td>
+      <td><input class="bal-input" type="number" min="0" max="99" value="${vacBal[i]}" onchange="setVacBal(${i},this.value)" style="color:#70c8f0"></td>
+      <td class="vac-val">${vacUsed}</td>
+      <td class="${vacRemCls}">${vacRem}</td>
+    </tr>`;
+  }
+  h+='</tbody>';
+  document.getElementById('trackerTbl').innerHTML=h;
+}
+
+function setHolBal(i,v){holBal[i]=Math.max(0,parseInt(v)||0);renderTracker();}
+function setVacBal(i,v){vacBal[i]=Math.max(0,parseInt(v)||0);renderTracker();}
+
+function render(){buildSchedule();renderTable();}
+function prev(){cycleOffset--;render();}
+function next(){cycleOffset++;render();}
+function regen(){seed=Date.now();render();}
+document.getElementById('startDate').addEventListener('change',()=>{cycleOffset=0;render();});
+
+function openCellM(ri,di){
+  mRn=ri;mDay=di;mSel=sched.sh[ri][di];
+  document.getElementById('mTitle').textContent=`${names[ri]} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
+  document.getElementById('mOpts').innerHTML=ALL_TYPES.map(s=>`<button class="mbtn${mSel===s?' sel':''}" data-s="${s}" onclick="pickSh('${s}')">${LABELS_M[s]}</button>`).join('');
+  document.getElementById('cellModal').classList.add('open');
+}
+function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
+function saveCell(){if(mRn!==null&&mDay!==null)sched.sh[mRn][mDay]=mSel;closeCell();renderTable();}
+function closeCell(){document.getElementById('cellModal').classList.remove('open');}
+
+function openNameM(i){
+  mEditIdx=i;
+  document.getElementById('nInput').value=names[i];
+  document.getElementById('gSel').value=groups[i];
+  document.getElementById('nameModal').classList.add('open');
+}
+function saveName(){
+  const n=document.getElementById('nInput').value.trim();
+  const g=document.getElementById('gSel').value;
+  if(mEditIdx!==null&&n){names[mEditIdx]=n;groups[mEditIdx]=g;}
+  closeNameM();renderTable();
+}
+function closeNameM(){document.getElementById('nameModal').classList.remove('open');}
+
+render();
+</script>
