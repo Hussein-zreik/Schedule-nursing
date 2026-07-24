@@ -204,7 +204,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     <button class="btn" onclick="exportExcel()" title="Export as Excel spreadsheet">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg>Excel
     </button>
-    <button class="btn icon-only" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle light or dark theme" title="Toggle theme"></button>
+    <button class="btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle light or dark theme" title="Toggle theme"></button>
   </div>
 </div>
 
@@ -516,7 +516,7 @@ function setVacBal(i,v){vacBal[i]=Math.max(0,parseInt(v)||0);renderTracker();sav
 function applyTheme(){
   document.documentElement.setAttribute('data-theme',theme);
   const b=document.getElementById('themeBtn');
-  b.innerHTML=theme==='dark'?SVG_SUN:SVG_MOON;
+  b.innerHTML=theme==='dark'?SVG_SUN+'Light mode':SVG_MOON+'Dark mode';
   b.title=theme==='dark'?'Switch to light mode':'Switch to dark mode';
 }
 function toggleTheme(){theme=theme==='dark'?'light':'dark';applyTheme();saveState();}
