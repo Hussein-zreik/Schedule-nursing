@@ -139,7 +139,14 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .mbtn[data-s=VAC].sel{border-color:var(--vac-bd);background:var(--vac-bg);color:var(--vac-fg)}
 .mbtn[data-s=N7].sel{border-color:var(--n7-bd);background:var(--n7-bg);color:var(--n7-fg)}
 .mbtn[data-s=OFF].sel{border-color:var(--border-3);background:var(--field-2);color:var(--muted)}
-.mactions{display:flex;gap:8px;justify-content:flex-end}
+.mactions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.hist-modal{min-width:320px;max-width:440px}
+.hist-list{max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--field)}
+.hist-item{display:flex;gap:10px;align-items:baseline;padding:7px 11px;border-bottom:1px solid var(--border);font-size:12px}
+.hist-item:last-child{border-bottom:none}
+.hist-t{color:var(--muted-3);font-family:'DM Mono',monospace;font-size:10px;white-space:nowrap;flex-shrink:0;min-width:96px}
+.hist-l{color:var(--text-2)}
+.hist-empty{padding:16px;color:var(--muted-2);font-size:12px;text-align:center}
 .ninput{width:100%;background:var(--field);border:1px solid var(--border-2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-2);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px}
 .ninput:focus{border-color:var(--border-3)}
 .gsel{width:100%;background:var(--field);border:1px solid var(--border-2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-2);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:1rem}
@@ -198,6 +205,13 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     </button>
     <button class="btn accent" onclick="regen()" title="Generate a new random schedule">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"/></svg>Regenerate
+    </button>
+    <span class="divider"></span>
+    <button class="btn" onclick="undo()" title="Undo last change (Ctrl+Z)">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>Undo
+    </button>
+    <button class="btn" onclick="openHistory()" title="View change history">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v6h6M3 9a9 9 0 1 1 2 6"/><path d="M12 7v5l3 2"/></svg>History
     </button>
     <span class="divider"></span>
     <button class="btn" onclick="exportPDF()" title="Export / print as PDF">
@@ -263,6 +277,17 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     </div>
   </div>
 </div>
+<div class="modal-wrap" id="histModal">
+  <div class="modal hist-modal">
+    <h3>Change history</h3>
+    <div class="hist-list" id="histList"></div>
+    <div class="mactions" style="margin-top:1rem">
+      <button class="btn" onclick="clearHistory()">Clear all</button>
+      <button class="btn" onclick="undo()" title="Undo last change">Undo last</button>
+      <button class="btn accent" onclick="closeHistory()">Close</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -289,7 +314,9 @@ let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
 let theme='dark';
 let overrides={}; // { 'YYYY-MM-DD': { rnIndex: shift } }
+let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
 let mRn=null,mDay=null,mSel=null,mEditIdx=null;
+const HIST_MAX=100;
 
 /* ---------- persistence ---------- */
 function saveState(){
@@ -297,7 +324,7 @@ function saveState(){
     localStorage.setItem(STORE_KEY,JSON.stringify({
       names,groups,holBal,vacBal,seed,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,overrides
+      theme,overrides,history
     }));
   }catch(e){/* storage unavailable */}
 }
@@ -314,7 +341,48 @@ function loadState(){
     if(typeof s.startDate==='string')startDateStr=s.startDate;
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
     if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
+    if(Array.isArray(s.history))history=s.history;
   }catch(e){/* ignore corrupt state */}
+}
+
+/* ---------- change memory (history + undo) ---------- */
+function snapshot(){
+  return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],
+          seed,overrides:JSON.parse(JSON.stringify(overrides))};
+}
+function restore(s){
+  names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
+  seed=s.seed;overrides=JSON.parse(JSON.stringify(s.overrides));
+}
+// call BEFORE mutating state: pass a snapshot taken before the change + a label
+function pushHistory(label,before){
+  history.push({t:Date.now(),label,snap:before});
+  if(history.length>HIST_MAX)history.shift();
+}
+function undo(){
+  if(!history.length){toast('Nothing to undo');return;}
+  const e=history.pop();
+  restore(e.snap);
+  render();
+  toast('Undid: '+e.label);
+}
+function clearHistory(){history=[];saveState();renderHistory();toast('History cleared');}
+function histTime(t){
+  const d=new Date(t);
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+
+         d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function openHistory(){renderHistory();document.getElementById('histModal').classList.add('open');}
+function closeHistory(){document.getElementById('histModal').classList.remove('open');}
+function renderHistory(){
+  const box=document.getElementById('histList');
+  if(!history.length){box.innerHTML='<div class="hist-empty">No changes recorded yet.</div>';return;}
+  let h='';
+  for(let i=history.length-1;i>=0;i--){
+    const e=history[i];
+    h+=`<div class="hist-item"><span class="hist-t">${histTime(e.t)}</span><span class="hist-l">${escapeHtml(e.label)}</span></div>`;
+  }
+  box.innerHTML=h;
 }
 
 /* ---------- date helpers ---------- */
@@ -614,8 +682,8 @@ function renderTracker(){
 }
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function setHolBal(i,v){holBal[i]=Math.max(0,parseInt(v)||0);renderTracker();saveState();}
-function setVacBal(i,v){vacBal[i]=Math.max(0,parseInt(v)||0);renderTracker();saveState();}
+function setHolBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===holBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Hol balance ${holBal[i]} → ${nv}`,b);holBal[i]=nv;renderTracker();saveState();}
+function setVacBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===vacBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Vac balance ${vacBal[i]} → ${nv}`,b);vacBal[i]=nv;renderTracker();saveState();}
 
 /* ---------- theme ---------- */
 function applyTheme(){
@@ -638,7 +706,7 @@ function toast(msg){
 function render(){buildSchedule();renderTable();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
-function regen(){seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;overrides={};render();toast('New schedule generated');}
+function regen(){const b=snapshot();pushHistory('Regenerated schedule',b);seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;overrides={};render();toast('New schedule generated');}
 document.getElementById('startDate').addEventListener('change',()=>{cycleOffset=0;render();});
 
 /* ---------- cell / name edit ---------- */
@@ -651,10 +719,16 @@ function openCellM(ri,di){
 function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
 function saveCell(){
   if(mRn!==null&&mDay!==null){
-    sched.sh[mRn][mDay]=mSel;
-    const k=isoKey(sched.days[mDay]);
-    if(!overrides[k])overrides[k]={};
-    overrides[k][mRn]=mSel;
+    const old=sched.sh[mRn][mDay];
+    if(old!==mSel){
+      const b=snapshot();
+      const dk=`${DAYS[mDay%7]} ${fmt(sched.days[mDay])}`;
+      pushHistory(`${names[mRn]} · ${dk}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`,b);
+      sched.sh[mRn][mDay]=mSel;
+      const k=isoKey(sched.days[mDay]);
+      if(!overrides[k])overrides[k]={};
+      overrides[k][mRn]=mSel;
+    }
   }
   closeCell();renderTable();
 }
@@ -669,12 +743,22 @@ function openNameM(i){
 function saveName(){
   const n=document.getElementById('nInput').value.trim();
   const g=document.getElementById('gSel').value;
-  if(mEditIdx!==null&&n){names[mEditIdx]=n;groups[mEditIdx]=g;}
+  if(mEditIdx!==null&&n&&(n!==names[mEditIdx]||g!==groups[mEditIdx])){
+    const b=snapshot();
+    const parts=[];
+    if(n!==names[mEditIdx])parts.push(`renamed "${names[mEditIdx]}" → "${n}"`);
+    if(g!==groups[mEditIdx])parts.push(`group ${groups[mEditIdx]} → ${g}`);
+    pushHistory('RN '+parts.join(', '),b);
+    names[mEditIdx]=n;groups[mEditIdx]=g;
+  }
   closeNameM();render();
 }
 function closeNameM(){document.getElementById('nameModal').classList.remove('open');}
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeCell();closeNameM();}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeCell();closeNameM();closeHistory();}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}
+});
 document.querySelectorAll('.modal-wrap').forEach(m=>m.addEventListener('mousedown',e=>{if(e.target===m)m.classList.remove('open');}));
 
 /* ---------- exports ---------- */
