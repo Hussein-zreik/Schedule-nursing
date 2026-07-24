@@ -331,6 +331,88 @@ function streak(sh,i,d){
   for(let x=d+1;x<14&&WORK_TYPES.has(sh[i][x]);x++)a++;
   return b+a;
 }
+// longest consecutive run of working days in a 14-day row
+function maxRunLen(row){let m=0,r=0;for(let d=0;d<14;d++){if(WORK_TYPES.has(row[d])){r++;if(r>m)m=r;}else r=0;}return m;}
+// count nurses working a given shift type on an absolute day
+function dtc(sh,d,type){let c=0;for(let i=0;i<sh.length;i++)if(sh[i][d]===type)c++;return c;}
+// repair >3 consecutive runs by relocating a nurse's surplus shift (one whose
+// type is above the day minimum, so it can be dropped safely) to a free weekday
+// slot in the same week that shortens the run. Preserves the 7-count, the
+// per-week split, daily minimums, and the weekday-only surplus rule.
+function repairRuns(sh,nightSet){
+  for(let i=0;i<sh.length;i++){
+    if(nightSet.has(i))continue;
+    for(let guard=0;guard<40&&maxRunLen(sh[i])>3;guard++){
+      let moved=false;
+      for(let d=0;d<14&&!moved;d++){
+        if(!WORK_TYPES.has(sh[i][d]))continue;
+        let st=d;while(st>0&&WORK_TYPES.has(sh[i][st-1]))st--;
+        let en=d;while(en<13&&WORK_TYPES.has(sh[i][en+1]))en++;
+        if(en-st+1<=3)continue;            // this day is not in an over-long run
+        const wd=d%7,type=sh[i][d];
+        if(wd>=5)continue;                 // only relocate weekday shifts
+        if(dtc(sh,d,type)<=((DAILY_MIN[wd][type])||0))continue; // no surplus -> can't drop
+        const wkStart=Math.floor(d/7)*7,before=en-st+1;
+        for(let dd=wkStart;dd<wkStart+5;dd++){
+          if(sh[i][dd]!=='OFF')continue;   // must be a free weekday slot
+          sh[i][d]='OFF';sh[i][dd]=type;    // trial move (same week -> split preserved)
+          if(maxRunLen(sh[i])<before){moved=true;break;}
+          sh[i][dd]='OFF';sh[i][d]=type;    // revert
+        }
+      }
+      if(!moved)break; // cannot improve without breaking a minimum (very rare)
+    }
+  }
+}
+// resolve remaining >3 runs where every shift in the run is essential (at the
+// day minimum) via a type-preserving 2-opt: two non-night nurses swap a
+// weekday+type within the same week. Every daily minimum, both 7-counts and
+// the per-week split are preserved exactly; only the run is broken.
+function swapRepair(sh,nightSet){
+  const nn=[];for(let i=0;i<sh.length;i++)if(!nightSet.has(i))nn.push(i);
+  for(const i of nn){
+    for(let guard=0;guard<40&&maxRunLen(sh[i])>3;guard++){
+      let done=false;
+      for(let d=0;d<14&&!done;d++){
+        if(!WORK_TYPES.has(sh[i][d])||(d%7)>=5)continue;
+        let st=d;while(st>0&&WORK_TYPES.has(sh[i][st-1]))st--;
+        let en=d;while(en<13&&WORK_TYPES.has(sh[i][en+1]))en++;
+        if(en-st+1<=3)continue;
+        const wk=Math.floor(d/7)*7,Ti=sh[i][d],before=maxRunLen(sh[i]);
+        for(const j of nn){
+          if(j===i||sh[j][d]!=='OFF')continue;   // j must be free on day d
+          for(let dj=wk;dj<wk+5;dj++){
+            if(dj===d||(dj%7)>=5)continue;
+            if(!WORK_TYPES.has(sh[j][dj])||sh[i][dj]!=='OFF')continue; // i free on dj
+            const Tj=sh[j][dj];
+            sh[i][d]='OFF';sh[i][dj]=Tj;sh[j][dj]='OFF';sh[j][d]=Ti; // swap
+            if(maxRunLen(sh[i])<before&&maxRunLen(sh[j])<=3){done=true;break;}
+            sh[i][dj]='OFF';sh[i][d]=Ti;sh[j][d]='OFF';sh[j][dj]=Tj; // revert
+          }
+          if(done)break;
+        }
+      }
+      if(!done)break;
+    }
+  }
+}
+// choose `rem` weekday slots from `freeWk` that keep <=3 consecutive working
+// days; returns a valid subset (random among valid) or null if none exists
+function pickWeekdaySubset(row,freeWk,rem,rng){
+  if(rem<=0)return [];
+  if(freeWk.length<rem)return null;
+  const valid=[];
+  const n=freeWk.length;
+  for(let mask=0;mask<(1<<n);mask++){
+    let bits=0;for(let k=0;k<n;k++)if(mask&(1<<k))bits++;
+    if(bits!==rem)continue;
+    const test=row.slice();
+    for(let k=0;k<n;k++)if(mask&(1<<k))test[freeWk[k]]='D6';
+    if(maxRunLen(test)<=3){const s=[];for(let k=0;k<n;k++)if(mask&(1<<k))s.push(freeWk[k]);valid.push(s);}
+  }
+  if(!valid.length)return null;
+  return valid[Math.floor(rng()*valid.length)];
+}
 
 /* ---------- schedule generation (hardened) ----------
    Guarantees: every non-night nurse works exactly `quota` day/eve shifts,
@@ -388,24 +470,45 @@ function buildSchedule(){
       place(pool[0],slot.gd,slot.type);
     }
 
-    // 2) fill every remaining quota shift so each nurse reaches exactly `quota`
+    // 2) fill every remaining quota shift so each nurse reaches exactly `quota`.
+    //    Surplus above the daily minimums goes on WEEKDAYS ONLY (Mon-Fri), so
+    //    weekends stay at exactly their minimum and no extra nights are added.
+    //    For each nurse we search all weekday-slot combinations and pick one
+    //    that also keeps <=3 consecutive working days. Weekend / >3-run
+    //    fallbacks fire only if no weekday-only, streak-safe option exists,
+    //    so the hard "exactly 7 shifts" rule is never broken.
+    const weekdayGd=Array.from({length:5},(_,d)=>base7+d); // Mon-Fri
+    const allGd=Array.from({length:7},(_,d)=>base7+d);      // Mon-Sun
     for(let i=0;i<N;i++){
       if(nightSet.has(i))continue;
-      let guard=true,safety=0;
-      while(assigned[i]<quota[i]&&safety<200){
+      const rem=quota[i]-assigned[i];
+      if(rem<=0)continue;
+      const freeWk=weekdayGd.filter(gd=>sh[i][gd]==='OFF');
+      const subset=pickWeekdaySubset(sh[i],freeWk,rem,rng);
+      if(subset){
+        for(const gd of subset){sh[i][gd]=shuffleArr(DAY_TYPES,rng)[0];assigned[i]++;}
+        continue;
+      }
+      // fallback (rare): greedily place remaining, weekday-first, relaxing
+      // the streak rule and finally allowing weekends to guarantee exactly 7
+      let safety=0;
+      while(assigned[i]<quota[i]&&safety<400){
         safety++;
-        let days=shuffleArr(Array.from({length:7},(_,d)=>base7+d).filter(gd=>sh[i][gd]==='OFF'&&(!guard||streak(sh,i,gd)<3)),rng);
-        if(!days.length){
-          if(guard){guard=false;continue;} // relax streak rule as a last resort
-          break; // genuinely no free day (should not happen: 7 days >= quota)
+        let pick=null;
+        for(const[pool,guard]of [[weekdayGd,true],[weekdayGd,false],[allGd,true],[allGd,false]]){
+          const c=shuffleArr(pool.filter(gd=>sh[i][gd]==='OFF'&&(!guard||streak(sh,i,gd)<3)),rng);
+          if(c.length){pick=c[0];break;}
         }
-        // prefer a type that is currently least-covered across the week for balance
-        sh[i][days[0]]=shuffleArr(DAY_TYPES,rng)[0];
+        if(pick===null)break;
+        sh[i][pick]=shuffleArr(DAY_TYPES,rng)[0];
         assigned[i]++;
       }
     }
   }
   assignWeek(0);assignWeek(1);
+  repairRuns(sh,nightSet);
+  swapRepair(sh,nightSet);
+  repairRuns(sh,nightSet);
 
   // 3) apply saved manual overrides keyed by absolute date
   for(let d=0;d<14;d++){
