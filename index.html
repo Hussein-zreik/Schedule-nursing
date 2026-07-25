@@ -88,7 +88,10 @@ input[type=date]:focus{border-color:var(--border-3)}
 .sum .lbl{font-size:10px;color:var(--muted-3);margin-top:4px;font-weight:300;text-transform:uppercase;letter-spacing:0.5px}
 .sum.ok .val{color:var(--accent)}
 .sum.warn .val{color:var(--warn)}
-.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);background:var(--grid-bg)}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);background:var(--grid-bg);contain:paint}
+/* while actively scrolling, ignore pointer over table bodies so hover styles
+   don't recompute/repaint every frame (rest-state look is unchanged) */
+body.is-scrolling .tbl-wrap tbody,body.is-scrolling .tracker-wrap tbody{pointer-events:none}
 table{border-collapse:collapse;width:100%;min-width:860px;font-size:11px;font-family:'DM Sans',sans-serif}
 thead tr th{background:var(--panel);border-bottom:1px solid var(--border-2);padding:8px 6px;font-weight:400;color:var(--muted-2);font-size:10px;text-align:center;white-space:nowrap}
 thead tr th.rn-h{text-align:left;min-width:145px;position:sticky;left:0;z-index:2;background:var(--panel);border-right:1px solid var(--border-2);padding-left:12px}
@@ -153,7 +156,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .slbl{font-size:10px;color:var(--muted-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;font-weight:300}
 .tracker-section{margin-top:2rem}
 .tracker-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:0.75rem;letter-spacing:0.2px;display:flex;align-items:center;gap:6px}
-.tracker-wrap{border-radius:10px;border:1px solid var(--border);overflow:auto;background:var(--grid-bg)}
+.tracker-wrap{border-radius:10px;border:1px solid var(--border);overflow:auto;background:var(--grid-bg);contain:paint}
 .tracker-wrap table{min-width:640px;width:100%}
 .tracker-wrap thead th{background:var(--panel);border-bottom:1px solid var(--border-2);padding:8px 12px;font-size:10px;font-weight:400;color:var(--muted-2);text-align:center}
 .tracker-wrap thead th.tn{text-align:left;position:sticky;left:0;background:var(--panel)}
@@ -760,6 +763,15 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}
 });
 document.querySelectorAll('.modal-wrap').forEach(m=>m.addEventListener('mousedown',e=>{if(e.target===m)m.classList.remove('open');}));
+
+/* mark the body as scrolling so hover repaints are suppressed mid-scroll.
+   Passive + capture catches both page scroll and the inner table scrollers. */
+let _scrollTimer=null;
+window.addEventListener('scroll',()=>{
+  if(!document.body.classList.contains('is-scrolling'))document.body.classList.add('is-scrolling');
+  clearTimeout(_scrollTimer);
+  _scrollTimer=setTimeout(()=>document.body.classList.remove('is-scrolling'),140);
+},{passive:true,capture:true});
 
 /* ---------- exports ---------- */
 function exportRows(){
