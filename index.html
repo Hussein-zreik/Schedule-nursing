@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RN Rotating Schedule</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" defer></script>
 <style>
 :root{
   --bg:#0a0a0a;--panel:#111;--panel-2:#0d0d0d;--field:#141414;--field-2:#1e1e1e;
@@ -818,26 +818,146 @@ function trackerRows(){
 }
 function periodLabel(){const{weekStart}=sched;return `${isoKey(weekStart)}_to_${isoKey(addDays(weekStart,13))}`;}
 
-function exportExcel(){
-  const {rows}=exportRows();
-  const tr=trackerRows();
-  if(window.XLSX){
-    const wb=XLSX.utils.book_new();
-    const ws1=XLSX.utils.aoa_to_sheet(rows);
-    ws1['!cols']=[{wch:14},{wch:6},...Array(14).fill({wch:8}),{wch:5},{wch:5},{wch:6}];
-    XLSX.utils.book_append_sheet(wb,ws1,'Schedule');
-    const ws2=XLSX.utils.aoa_to_sheet(tr);
-    ws2['!cols']=[{wch:14},{wch:6},{wch:12},{wch:10},{wch:14},{wch:12},{wch:10},{wch:14}];
-    XLSX.utils.book_append_sheet(wb,ws2,'Balances');
-    XLSX.writeFile(wb,`RN_schedule_${periodLabel()}.xlsx`);
-    toast('Excel file downloaded');
-  }else{
-    // fallback: CSV (opens in Excel) if the spreadsheet library failed to load
-    const esc=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
-    const csv=[...rows,[],['Balances'],...tr].map(r=>r.map(esc).join(',')).join('\n');
-    downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8;'}),`RN_schedule_${periodLabel()}.csv`);
-    toast('Spreadsheet library offline — exported CSV');
+// theme-matched Excel palettes (ARGB, no leading #). OFF cells use grid bg.
+const XL_PAL={
+  light:{
+    grid:'FFFFFFFF',gridFg:'FF191D24',header:'FFEEF0F4',headerFg:'FF515A66',
+    title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',
+    border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
+    S:{D6:['FFDBEAFB','FF12558F'],D7:['FFE0EDFD','FF175E9E'],S8:['FFD9EFD9','FF1A7233'],
+       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],N7:['FFE9DDF8','FF623AB4'],
+       HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1']}
+  },
+  dark:{
+    grid:'FF0A0A0A',gridFg:'FFE8E6E0',header:'FF111111',headerFg:'FF8A8A8A',
+    title:'FF0A0A0A',titleFg:'FFF0EDE8',count:'FF0D0D0D',countFg:'FF8A8A8A',
+    border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
+    S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
+       S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
+       HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0']}
   }
+};
+function colL(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
+
+async function exportExcel(){
+  if(!window.ExcelJS){exportCSV();return;}
+  try{
+    const {days,sh,weekStart}=sched;
+    const P=XL_PAL[theme==='light'?'light':'dark'];
+    const solid=argb=>({type:'pattern',pattern:'solid',fgColor:{argb}});
+    const thin={style:'thin',color:{argb:P.border}};
+    const allBorder={top:thin,left:thin,bottom:thin,right:thin};
+    const wb=new ExcelJS.Workbook();
+    wb.creator='RN Rotating Schedule';wb.created=new Date();
+
+    /* ===== Sheet 1: Schedule ===== */
+    const ws=wb.addWorksheet('Schedule',{views:[{state:'frozen',xSplit:2,ySplit:2}]});
+    const NC=19; // A..S (RN,Group,14 days,W1,W2,Total)
+    // row 1 title
+    ws.mergeCells(1,1,1,NC);
+    const tc=ws.getCell(1,1);
+    tc.value=`RN Rotating Schedule  ·  Cycle ${cycleOffset}  ·  ${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
+    tc.fill=solid(P.title);tc.font={bold:true,size:13,color:{argb:P.titleFg}};
+    tc.alignment={vertical:'middle',horizontal:'left'};
+    ws.getRow(1).height=22;
+    // row 2 header
+    const head=['RN','Group',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Total'];
+    head.forEach((h,c)=>{const cell=ws.getCell(2,c+1);cell.value=h;cell.fill=solid(P.header);
+      cell.font={bold:true,size:10,color:{argb:P.headerFg}};cell.alignment={horizontal:'center'};cell.border=allBorder;});
+    ws.getCell(2,1).alignment={horizontal:'left'};
+    // data rows 3..21
+    for(let i=0;i<N;i++){
+      const r=3+i;
+      const nameC=ws.getCell(r,1);nameC.value=names[i];nameC.fill=solid(P.grid);
+      nameC.font={color:{argb:P.gridFg},bold:true,size:11};nameC.border=allBorder;
+      const grpC=ws.getCell(r,2);grpC.value=groups[i];grpC.fill=solid(P.grid);
+      grpC.font={color:{argb:P.gridFg},size:10};grpC.alignment={horizontal:'center'};grpC.border=allBorder;
+      for(let d=0;d<14;d++){
+        const cell=ws.getCell(r,3+d);const s=sh[i][d];
+        cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
+        const sc=P.S[s];
+        if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
+        else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
+      }
+      // W1 / W2 / Total  — live formulas (count working = non-blank minus HOL/VAC)
+      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"HOL")-COUNTIF(C${r}:I${r},"VAC")`;
+      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"HOL")-COUNTIF(J${r}:P${r},"VAC")`;
+      [['Q',w1r],['R',w2r],['S',`Q${r}+R${r}`]].forEach(([col,f],k)=>{
+        const cell=ws.getCell(r,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
+        cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
+      });
+    }
+    // count rows 22 (day),23 (night),24 (total) — live formulas per day column
+    const dayR=3+N,ngtR=dayR+1,totR=dayR+2;
+    const label=(r,txt)=>{const c=ws.getCell(r,1);c.value=txt;ws.mergeCells(r,1,r,2);
+      c.fill=solid(P.count);c.font={italic:true,color:{argb:P.countFg},size:10};c.border=allBorder;};
+    label(dayR,'Day shifts');label(ngtR,'Night shifts');label(totR,'Total per day');
+    for(let d=0;d<14;d++){
+      const L=colL(3+d);
+      const dayF=DAY_TYPES.map(t=>`COUNTIF(${L}3:${L}${2+N},"${t}")`).join('+');
+      ws.getCell(dayR,3+d).value={formula:dayF};
+      ws.getCell(ngtR,3+d).value={formula:`COUNTIF(${L}3:${L}${2+N},"N7")`};
+      ws.getCell(totR,3+d).value={formula:`${L}${dayR}+${L}${ngtR}`};
+      [dayR,ngtR,totR].forEach(r=>{const c=ws.getCell(r,3+d);c.alignment={horizontal:'center'};
+        c.fill=solid(P.count);c.font={color:{argb:P.countFg},size:10};c.border=allBorder;});
+    }
+    // column widths
+    ws.getColumn(1).width=15;ws.getColumn(2).width=7;
+    for(let d=0;d<14;d++)ws.getColumn(3+d).width=8;
+    ws.getColumn(17).width=5;ws.getColumn(18).width=5;ws.getColumn(19).width=6;
+    // RULE: Total per nurse must equal 7 — auto-flags when you edit any shift
+    ws.addConditionalFormatting({ref:`S3:S${2+N}`,rules:[
+      {type:'cellIs',operator:'notEqual',formulae:['7'],priority:1,
+        style:{fill:solidCF(P.badBg),font:{bold:true,color:{argb:P.badFg}}}},
+      {type:'cellIs',operator:'equal',formulae:['7'],priority:2,
+        style:{font:{bold:true,color:{argb:P.ok}}}}
+    ]});
+
+    /* ===== Sheet 2: Balances (live, references Schedule) ===== */
+    const bs=wb.addWorksheet('Balances',{views:[{state:'frozen',ySplit:2}]});
+    bs.mergeCells(1,1,1,8);
+    const bt=bs.getCell(1,1);bt.value='Holiday & Vacation balances  (used counts pull live from the Schedule sheet)';
+    bt.fill=solid(P.title);bt.font={bold:true,size:13,color:{argb:P.titleFg}};bs.getRow(1).height=22;
+    const bh=['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining'];
+    bh.forEach((h,c)=>{const cell=bs.getCell(2,c+1);cell.value=h;cell.fill=solid(P.header);
+      cell.font={bold:true,size:10,color:{argb:P.headerFg}};cell.alignment={horizontal:'center'};cell.border=allBorder;});
+    for(let i=0;i<N;i++){
+      const r=3+i;
+      const set=(col,val,opt)=>{const c=bs.getCell(r,col);c.value=val;c.border=allBorder;
+        c.fill=solid(P.grid);c.font=Object.assign({color:{argb:P.gridFg},size:10},opt||{});
+        c.alignment={horizontal:col<=2?(col===1?'left':'center'):'center'};return c;};
+      set(1,names[i],{bold:true});set(2,groups[i]);
+      set(3,holBal[i]);
+      set(4,{formula:`COUNTIF(Schedule!C${r}:P${r},"HOL")`});
+      set(5,{formula:`C${r}-D${r}`},{bold:true});
+      set(6,vacBal[i]);
+      set(7,{formula:`COUNTIF(Schedule!C${r}:P${r},"VAC")`});
+      set(8,{formula:`F${r}-G${r}`},{bold:true});
+    }
+    [3,4,5,6,7,8].forEach(c=>bs.getColumn(c).width=13);bs.getColumn(1).width=15;bs.getColumn(2).width=7;
+    // RULES: remaining < 0 red, low balance amber
+    bs.addConditionalFormatting({ref:`E3:E${2+N}`,rules:[
+      {type:'cellIs',operator:'lessThan',formulae:['0'],priority:1,style:{fill:solidCF(P.badBg),font:{bold:true,color:{argb:P.badFg}}}},
+      {type:'cellIs',operator:'between',formulae:['0','2'],priority:2,style:{fill:solidCF(P.warnBg),font:{color:{argb:P.warnFg}}}}
+    ]});
+    bs.addConditionalFormatting({ref:`H3:H${2+N}`,rules:[
+      {type:'cellIs',operator:'lessThan',formulae:['0'],priority:1,style:{fill:solidCF(P.badBg),font:{bold:true,color:{argb:P.badFg}}}},
+      {type:'cellIs',operator:'between',formulae:['0','3'],priority:2,style:{fill:solidCF(P.warnBg),font:{color:{argb:P.warnFg}}}}
+    ]});
+
+    const buf=await wb.xlsx.writeBuffer();
+    downloadBlob(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`RN_schedule_${periodLabel()}.xlsx`);
+    toast('Excel file downloaded (colored + live formulas)');
+  }catch(err){console.error('Excel export failed',err);exportCSV();toast('Excel export failed — exported CSV');}
+}
+// conditional-formatting fills use bgColor (ExcelJS quirk)
+function solidCF(argb){return {type:'pattern',pattern:'solid',bgColor:{argb}};}
+function exportCSV(){
+  const {rows}=exportRows();const tr=trackerRows();
+  const esc=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const csv=[...rows,[],['Balances'],...tr].map(r=>r.map(esc).join(',')).join('\n');
+  downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8;'}),`RN_schedule_${periodLabel()}.csv`);
+  toast('Spreadsheet library offline — exported CSV');
 }
 function downloadBlob(blob,name){
   const url=URL.createObjectURL(blob);
