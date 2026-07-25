@@ -197,14 +197,17 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     <div class="sub">19 nurses · exactly 7 shifts per 2-week cycle · min 8 day slots per day</div>
   </div>
   <div class="controls">
-    <span class="ctrl-label">Start</span>
-    <input type="date" id="startDate" aria-label="Cycle start date">
+    <span class="ctrl-label">Cycle 0</span>
+    <input type="date" id="startDate" aria-label="Cycle 0 anchor date (Monday)" title="Anchor: the Monday that cycle 0 starts on. The view auto-advances from here as time passes.">
     <button class="btn icon-only" onclick="prev()" aria-label="Previous cycle" title="Previous cycle">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
     </button>
     <span class="week-pill" id="weekLabel">—</span>
     <button class="btn icon-only" onclick="next()" aria-label="Next cycle" title="Next cycle">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    <button class="btn icon-only" onclick="goToday()" aria-label="Jump to current cycle" title="Jump to the current cycle (today)">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 12l0-5M12 12l3.5 2"/></svg>
     </button>
     <button class="btn accent" onclick="regen()" title="Generate a new random schedule">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"/></svg>Regenerate
@@ -498,8 +501,10 @@ function buildSchedule(){
 
   const aIdxs=[0,1,2,3,4,5,6,7,8,9];
   const bIdxs=[10,11,12,13,14,15,16,17,18];
-  const aPairStart=(Math.abs(cycleOffset)*2)%aIdxs.length;
-  const bPairStart=(Math.abs(cycleOffset)*2)%bIdxs.length;
+  // continuous rotation in both directions (floor-mod), so cycle N always maps
+  // to the same night pair whether reached forward in time or by navigation
+  const aPairStart=(((cycleOffset*2)%aIdxs.length)+aIdxs.length)%aIdxs.length;
+  const bPairStart=(((cycleOffset*2)%bIdxs.length)+bIdxs.length)%bIdxs.length;
   const nightA=[aIdxs[aPairStart],aIdxs[(aPairStart+1)%aIdxs.length]];
   const nightB=[bIdxs[bPairStart%bIdxs.length],bIdxs[(bPairStart+1)%bIdxs.length]];
   const nightSet=new Set([...nightA,...nightB]);
@@ -600,9 +605,8 @@ function dayShort(sh,d){ // is this day below minimum on any type?
 
 function renderTable(){
   const{days,sh,weekStart}=sched;
-  document.getElementById('weekLabel').textContent=`${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
-  const si=document.getElementById('startDate');
-  if(!si.value){si.value=isoKey(weekStart);}
+  document.getElementById('weekLabel').textContent=`Cycle ${cycleOffset} · ${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
+  // the date field holds the ANCHOR (cycle-0 Monday); leave it as-is while browsing
 
   let h='<thead><tr><th class="rn-h">RN</th>';
   for(let d=0;d<14;d++){const wknd=(d%7)>=5?' wknd':'';h+=`<th class="${d<7?'wk1':'wk2'}${wknd}"><div class="dname">${DAYS[d%7]}</div><div class="ddate">${fmt(days[d])}</div></th>`;}
@@ -706,11 +710,21 @@ function toast(msg){
 }
 
 /* ---------- navigation ---------- */
+// how many whole 2-week cycles have elapsed between the anchor Monday and today
+function autoOffset(anchorISO,today){
+  const a=getMonday(anchorISO?new Date(anchorISO):new Date());
+  const t=getMonday(today||new Date());
+  return Math.floor(Math.round((t-a)/86400000)/14);
+}
 function render(){buildSchedule();renderTable();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
+function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
 function regen(){const b=snapshot();pushHistory('Regenerated schedule',b);seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;overrides={};render();toast('New schedule generated');}
-document.getElementById('startDate').addEventListener('change',()=>{cycleOffset=0;render();});
+// changing the date re-anchors cycle 0 to that Monday, then jumps to today's cycle
+document.getElementById('startDate').addEventListener('change',function(){
+  startDateStr=this.value;cycleOffset=autoOffset(this.value);render();saveState();
+});
 
 /* ---------- cell / name edit ---------- */
 function openCellM(ri,di){
@@ -840,8 +854,13 @@ function exportPDF(){
 /* ---------- init ---------- */
 loadState();
 applyTheme();
-if(startDateStr)document.getElementById('startDate').value=startDateStr;
+// first ever open: anchor cycle 0 to this week's Monday and remember it
+if(!startDateStr){startDateStr=isoKey(getMonday(new Date()));}
+document.getElementById('startDate').value=startDateStr;
+// auto-advance to the cycle that contains today, based on the fixed anchor
+cycleOffset=autoOffset(startDateStr);
 render();
+saveState();
 </script>
 </body>
 </html>
