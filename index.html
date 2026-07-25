@@ -25,6 +25,7 @@
   --n7-bg:#1a0a2e;--n7-fg:#a07de0;--n7-bd:#2a1244;
   --hol-bg:#2a0a0a;--hol-fg:#f07070;--hol-bd:#5a1a1a;
   --vac-bg:#0a1a2a;--vac-fg:#70c8f0;--vac-bd:#1a4a6a;
+  --req-bg:#2a0a1e;--req-fg:#e07dbf;--req-bd:#4a1a3a;
   --off-fg:#252525;
   --scrim:rgba(0,0,0,0.82);
 }
@@ -46,6 +47,7 @@
   --n7-bg:#e9ddf8;--n7-fg:#623ab4;--n7-bd:#cfbaec;
   --hol-bg:#fadede;--hol-fg:#b62a2a;--hol-bd:#eeb6b6;
   --vac-bg:#d9ecfa;--vac-fg:#0f6aa1;--vac-bd:#b4daef;
+  --req-bg:#fbe0f0;--req-fg:#b03a80;--req-bd:#f0bcd8;
   --off-fg:#a2aab8;
   --scrim:rgba(26,34,46,0.46);
 }
@@ -81,6 +83,7 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .b-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
+.b-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .b-OFF{background:var(--panel);color:var(--muted-4);border-color:var(--border)}
 .summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem}
 .sum{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:90px}
@@ -119,6 +122,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .sc.s-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .sc.s-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .sc.s-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
+.sc.s-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .sc.s-OFF{background:transparent;color:var(--off-fg);border-color:transparent;font-size:9px}
 .count-row td{background:var(--panel-2);border-top:1px solid var(--border-2);font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:var(--muted-3);padding:5px 6px;text-align:center}
 .count-row td.lbl-c{text-align:left;color:var(--muted-3);padding-left:12px;font-size:10px;position:sticky;left:0;background:var(--panel-2);border-right:1px solid var(--border)}
@@ -140,6 +144,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .mbtn.sel{border-color:var(--d6-bd);background:var(--d6-bg);color:var(--d6-fg)}
 .mbtn[data-s=HOL].sel{border-color:var(--hol-bd);background:var(--hol-bg);color:var(--hol-fg)}
 .mbtn[data-s=VAC].sel{border-color:var(--vac-bd);background:var(--vac-bg);color:var(--vac-fg)}
+.mbtn[data-s=REQ].sel{border-color:var(--req-bd);background:var(--req-bg);color:var(--req-fg)}
 .mbtn[data-s=N7].sel{border-color:var(--n7-bd);background:var(--n7-bg);color:var(--n7-fg)}
 .mbtn[data-s=OFF].sel{border-color:var(--border-3);background:var(--field-2);color:var(--muted)}
 .mactions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
@@ -239,6 +244,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
   <span class="leg"><span class="leg-badge b-N7">N7</span>Night</span>
   <span class="leg"><span class="leg-badge b-HOL">Hol</span>Holiday</span>
   <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
+  <span class="leg"><span class="leg-badge b-REQ">Req</span>Req off</span>
   <span class="leg"><span class="leg-badge b-OFF">—</span>Off</span>
   <span class="leg" style="margin-left:8px"><span style="color:var(--grpA);font-weight:500">&#9632; Group A</span></span>
   <span class="leg"><span style="color:var(--grpB);font-weight:500">&#9632; Group B</span></span>
@@ -299,9 +305,9 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 <script>
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DAY_TYPES=['D6','D7','S8','S9','S10'];
-const ALL_TYPES=['D6','D7','S8','S9','S10','N7','HOL','VAC','OFF'];
+const ALL_TYPES=['D6','D7','S8','S9','S10','N7','HOL','VAC','REQ','OFF'];
 const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','N7']);
-const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',OFF:'Day off'};
+const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
 const DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}
@@ -635,7 +641,7 @@ function renderTable(){
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Total per day</td>';
-  for(let d=0;d<14;d++){h+=`<td class="tot-c">${Array.from({length:N},(_,i)=>i).filter(i=>sh[i][d]!=='OFF').length}</td>`;}
+  for(let d=0;d<14;d++){h+=`<td class="tot-c">${Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr></tbody>';
 
   document.getElementById('tbl').innerHTML=h;
@@ -802,7 +808,7 @@ function exportRows(){
   for(let d=0;d<14;d++){
     dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length);
     ngtRow.push(dayTypeCount(sh,d,'N7'));
-    totRow.push(Array.from({length:N},(_,i)=>i).filter(i=>sh[i][d]!=='OFF').length);
+    totRow.push(Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length);
   }
   dayRow.push('','','');ngtRow.push('','','');totRow.push('','','');
   rows.push([]);rows.push(dayRow);rows.push(ngtRow);rows.push(totRow);
@@ -826,7 +832,7 @@ const XL_PAL={
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
     S:{D6:['FFDBEAFB','FF12558F'],D7:['FFE0EDFD','FF175E9E'],S8:['FFD9EFD9','FF1A7233'],
        S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],N7:['FFE9DDF8','FF623AB4'],
-       HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1']}
+       HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1'],REQ:['FFFBE0F0','FFB03A80']}
   },
   dark:{
     grid:'FF0A0A0A',gridFg:'FFE8E6E0',header:'FF111111',headerFg:'FF8A8A8A',
@@ -834,7 +840,7 @@ const XL_PAL={
     border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
     S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
        S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
-       HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0']}
+       HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0'],REQ:['FF2A0A1E','FFE07DBF']}
   }
 };
 function colL(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
@@ -880,8 +886,8 @@ async function exportExcel(){
         else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
       }
       // W1 / W2 / Total  — live formulas (count working = non-blank minus HOL/VAC)
-      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"HOL")-COUNTIF(C${r}:I${r},"VAC")`;
-      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"HOL")-COUNTIF(J${r}:P${r},"VAC")`;
+      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"HOL")-COUNTIF(C${r}:I${r},"VAC")-COUNTIF(C${r}:I${r},"REQ")`;
+      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"HOL")-COUNTIF(J${r}:P${r},"VAC")-COUNTIF(J${r}:P${r},"REQ")`;
       [['Q',w1r],['R',w2r],['S',`Q${r}+R${r}`]].forEach(([col,f],k)=>{
         const cell=ws.getCell(r,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
         cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
