@@ -518,6 +518,35 @@ function buildSchedule(){
   for(const i of nightA){[0,1,5,6].forEach(d=>sh[i][d]='N7');[9,10,11].forEach(d=>sh[i][d]='N7');}
   for(const i of nightB){[2,3,4].forEach(d=>sh[i][d]='N7');[7,8,12,13].forEach(d=>sh[i][d]='N7');}
 
+  // ----- Weekend DAY duty: independent rotation, skips night nurses -----
+  // Each weekend: a 2-RN team works Sat D7 + Sun D7, and a 3rd RN works the
+  // Saturday-only S10 extra. Gives exactly Sat = 2*D7 + 1*S10 (3) and
+  // Sun = 2*D7 (2). The turn order is its own sequence (advances 3 per
+  // weekend), independent of the night rotation; it only skips whoever is on
+  // nights so no one is double-booked. Both weekends of a cycle use distinct RNs.
+  function placeWeekendDuty(){
+    const used=new Set();
+    for(let w=0;w<2;w++){
+      const satD=w*7+5,sunD=w*7+6;
+      const g=cycleOffset*2+w;                 // global weekend index
+      const start=(((g*3)%N)+N)%N;             // independent pointer (floor-mod)
+      const chosen=[];
+      for(let k=0;k<N&&chosen.length<3;k++){
+        const i=(start+k)%N;
+        if(nightSet.has(i)||used.has(i))continue;      // skip night pair & cycle repeats
+        if(sh[i][satD]!=='OFF'||sh[i][sunD]!=='OFF')continue;
+        chosen.push(i);
+      }
+      if(chosen.length<3)continue;             // safety (pool too small)
+      chosen.forEach(i=>used.add(i));
+      const[t1,t2,ex]=chosen;
+      sh[t1][satD]='D7';sh[t1][sunD]='D7';     // weekend team member 1
+      sh[t2][satD]='D7';sh[t2][sunD]='D7';     // weekend team member 2
+      sh[ex][satD]='S10';                       // Saturday-only extra duty
+    }
+  }
+  placeWeekendDuty();
+
   function assignWeek(week){
     const base7=week*7;
     const quota=Array(N).fill(0);
@@ -525,8 +554,14 @@ function buildSchedule(){
       if(nightSet.has(i)){quota[i]=0;}
       else{const isA=groups[i]==='A';quota[i]=(isA?(week===0?4:3):(week===0?3:4));}
     }
+    // seed `assigned` with the pre-placed weekend day shifts so quota accounting
+    // (exactly 7 per nurse) includes weekend duty already handled above
     const assigned=Array(N).fill(0);
-    const dayCount=Array(N).fill(0).map(()=>0); // shifts already placed per nurse this week is `assigned`
+    for(let i=0;i<N;i++){
+      if(nightSet.has(i))continue;
+      let c=0;for(let d=0;d<7;d++)if(DAY_TYPES.includes(sh[i][base7+d]))c++;
+      assigned[i]=c;
+    }
 
     // eligible with streak guard
     function eligible(i,gd,guardStreak){
@@ -538,9 +573,10 @@ function buildSchedule(){
     }
     function place(i,gd,type){sh[i][gd]=type;assigned[i]++;}
 
-    // 1) satisfy daily minimums, prioritising nurses with the most remaining quota
+    // 1) satisfy WEEKDAY minimums (Mon-Fri); weekend day coverage is already
+    //    placed by the fixed weekend rotation above, so it is excluded here
     const mandatory=[];
-    for(let d=0;d<7;d++){
+    for(let d=0;d<5;d++){
       const need=DAILY_MIN[d];
       for(const[type,cnt]of Object.entries(need))for(let c=0;c<cnt;c++)mandatory.push({gd:base7+d,type});
     }

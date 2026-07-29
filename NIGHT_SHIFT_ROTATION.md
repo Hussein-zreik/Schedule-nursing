@@ -50,9 +50,13 @@ _Cycle 5 returns to RN 1 + RN 2, and so on._
 
 _Cycle 9 returns to RN 11 + RN 12._
 
-## 5. Weekend turns (night coverage)
+## 5. Weekend turns
 
-Weekend **nights** rotate with the pairs above. The **day** weekend shifts are **not** a fixed rotation — see the note below.
+Weekends have two independent rotations: **nights** (driven by the night pairs) and **day duty** (its own separate cycle).
+
+### 5a. Weekend night coverage
+
+Weekend **nights** rotate with the night pairs: **Week-1 weekend → Night-A pair**, **Week-2 weekend → Night-B pair**.
 
 | Cycle | Week-1 weekend (Sat + Sun) nights | Week-2 weekend (Sat + Sun) nights |
 |---|---|---|
@@ -102,7 +106,31 @@ Weekend **nights** rotate with the pairs above. The **day** weekend shifts are *
 | 43 | RN 7 + RN 8 | RN 16 + RN 17 |
 | 44 | RN 9 + RN 10 | RN 18 + RN 19 |
 
-> **Weekend day shifts are randomized, not rotational.** Each weekend still requires **Sat: 2× D7 + 1× S10** and **Sun: 2× D7**. These slots are filled from whichever day nurses are available when you generate/Regenerate the schedule, so they change run to run and are intentionally not listed here as a fixed turn order.
+### 5b. Weekend day duty (independent rotation)
+
+Weekend **day** shifts now follow their **own fixed cycle**, independent of the night rotation. Each weekend:
+
+- **2 RNs = the weekend team** → both work **Sat D7 + Sun D7**
+- **1 RN = the Saturday-only extra** → works **Sat S10**
+
+This gives exactly **Sat = 2× D7 + 1× S10 (3)** and **Sun = 2× D7 (2)**. The turn order is its own sequence that **advances 3 RNs per weekend** and simply **skips anyone on nights** that weekend (so no one is double-booked). The two weekends of a cycle always use different RNs.
+
+| Cycle | Week-1 weekend — team (Sat+Sun) + Sat extra | Week-2 weekend — team (Sat+Sun) + Sat extra |
+|---|---|---|
+| 0 | RN 3 + RN 4  ·  extra RN 5 | RN 6 + RN 7  ·  extra RN 8 |
+| 1 | RN 7 + RN 8  ·  extra RN 9 | RN 10 + RN 11  ·  extra RN 12 |
+| 2 | RN 13 + RN 14  ·  extra RN 17 | RN 18 + RN 19  ·  extra RN 1 |
+| 3 | RN 19 + RN 1  ·  extra RN 2 | RN 3 + RN 4  ·  extra RN 5 |
+| 4 | RN 6 + RN 7  ·  extra RN 8 | RN 12 + RN 13  ·  extra RN 14 |
+| 5 | RN 14 + RN 15  ·  extra RN 16 | RN 17 + RN 18  ·  extra RN 19 |
+| 6 | RN 18 + RN 19  ·  extra RN 1 | RN 2 + RN 5  ·  extra RN 6 |
+| 7 | RN 7 + RN 8  ·  extra RN 9 | RN 10 + RN 11  ·  extra RN 12 |
+| 8 | RN 11 + RN 12  ·  extra RN 13 | RN 14 + RN 15  ·  extra RN 16 |
+| 9 | RN 17 + RN 18  ·  extra RN 19 | RN 1 + RN 2  ·  extra RN 3 |
+| 10 | RN 4 + RN 5  ·  extra RN 6 | RN 7 + RN 8  ·  extra RN 9 |
+| 11 | RN 10 + RN 11  ·  extra RN 12 | RN 13 + RN 14  ·  extra RN 17 |
+
+> Because the day rotation advances by 3 RNs per weekend **and** skips whichever pair is on nights that weekend, its exact repeat interacts with the 45-cycle night reset — so it doesn't line up on a short, neat period like the night sub-cycles. The rule itself (2-team + Saturday extra, skip nights) is fixed and deterministic; the table above lists the concrete turns for the first 12 cycles.
 
 ## 6. Master rotation table — full cycle until reset (45 cycles)
 
