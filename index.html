@@ -511,7 +511,6 @@ function buildSchedule(){
   const wStart=getMonday(si?new Date(si):new Date());
   const base=addDays(wStart,cycleOffset*14);
   const days14=Array.from({length:14},(_,i)=>addDays(base,i));
-  const rng=mkRng((seed^(cycleOffset*0x9e3779))>>>0);
   const sh=Array.from({length:N},()=>Array(14).fill('OFF'));
 
   const aIdxs=[0,1,2,3,4,5,6,7,8,9];
@@ -556,7 +555,7 @@ function buildSchedule(){
   }
   placeWeekendDuty();
 
-  function assignWeek(week){
+  function assignWeek(week,sh,rng){
     const base7=week*7;
     const quota=Array(N).fill(0);
     for(let i=0;i<N;i++){
@@ -632,10 +631,23 @@ function buildSchedule(){
       }
     }
   }
-  assignWeek(0);assignWeek(1);
-  repairRuns(sh,nightSet);
-  swapRepair(sh,nightSet);
-  repairRuns(sh,nightSet);
+  // ----- Guarantee <=3 consecutive days -----
+  // Nights and weekend teams are fixed, so only the weekday coverage is
+  // flexible. Retry the weekday assignment (reshuffled each attempt) until no
+  // nurse has a 4+ day run; keep the best if a perfect one is somehow not
+  // found. Nights/weekend/exactly-7/minimums are identical every attempt.
+  const baseSnap=sh.map(r=>r.slice());
+  let best=null,bestMax=99;
+  for(let att=0;att<30;att++){
+    const work=baseSnap.map(r=>r.slice());
+    const arng=mkRng((seed^(cycleOffset*0x9e3779)^(att*0x85ebca6b))>>>0);
+    assignWeek(0,work,arng);assignWeek(1,work,arng);
+    repairRuns(work,nightSet);swapRepair(work,nightSet);repairRuns(work,nightSet);
+    let mx=0;for(let i=0;i<N;i++){const r=maxRunLen(work[i]);if(r>mx)mx=r;}
+    if(mx<bestMax){bestMax=mx;best=work;}
+    if(mx<=3)break;
+  }
+  for(let i=0;i<N;i++)for(let d=0;d<14;d++)sh[i][d]=best[i][d];
 
   // 3) apply saved manual overrides keyed by absolute date
   for(let d=0;d<14;d++){
