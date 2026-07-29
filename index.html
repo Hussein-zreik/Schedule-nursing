@@ -6,6 +6,8 @@
 <title>RN Rotating Schedule</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
 <style>
 :root{
   --bg:#0a0a0a;--panel:#111;--panel-2:#0d0d0d;--field:#141414;--field-2:#1e1e1e;
@@ -213,7 +215,8 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
   }
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   html,body,.app{background:#fff!important;color:#111!important;padding:0!important}
-  .controls,.legend,.tracker-note,.modal-wrap,.toast,.rn-grp,.roster-ctl,.banner{display:none!important}
+  .controls,.tracker-note,.modal-wrap,.toast,.rn-grp,.roster-ctl,.banner{display:none!important}
+  .legend{display:flex!important;margin-bottom:10px}
   .sub{display:block!important}
   .tbl-wrap,.tracker-wrap{overflow:visible!important;border:1px solid var(--border)!important;background:#fff!important}
   table{min-width:0!important;width:100%!important}
@@ -1137,11 +1140,77 @@ function downloadBlob(blob,name){
   const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();
   document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+// light-theme shift colors for the PDF (RGB), matching the app's light mode
+const PDF_COL={
+  D6:[[169,208,245],[12,69,118]],D7:[[182,216,247],[14,78,130]],
+  S8:[[168,221,168],[20,91,40]],S9:[[180,224,176],[26,95,35]],
+  S10:[[242,207,133],[106,66,0]],N7:[[205,180,239],[74,42,144]],
+  HOL:[[243,180,180],[146,31,31]],VAC:[[169,216,242],[10,85,127]],
+  REQ:[[243,182,218],[138,43,98]]
+};
 function exportPDF(){
-  const prev=document.title;
-  document.title=`RN Schedule ${periodLabel()}`;
-  window.print();
-  setTimeout(()=>{document.title=prev;},500);
+  const J=window.jspdf&&window.jspdf.jsPDF;
+  const{days,sh,weekStart}=sched;
+  if(!J){ // library unavailable (offline) -> browser print (may show URL footer)
+    const prev=document.title;document.title=`RN Schedule ${periodLabel()}`;window.print();
+    setTimeout(()=>{document.title=prev;},500);
+    toast('PDF library offline — used browser print');return;
+  }
+  try{
+    const doc=new J({orientation:'landscape',unit:'pt',format:'a4'});
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(20,25,35);
+    doc.text(`RN Rotating Schedule  ·  Cycle ${cycleOffset}  ·  ${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`,24,26);
+
+    // ----- schedule table -----
+    const head=[['RN','Grp',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Tot']];
+    const body=[];
+    for(let i=0;i<N;i++){
+      const w1=sh[i].slice(0,7).filter(s=>WORK_TYPES.has(s)).length;
+      const w2=sh[i].slice(7,14).filter(s=>WORK_TYPES.has(s)).length;
+      body.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
+    }
+    const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total/day',''];
+    for(let d=0;d<14;d++){
+      dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length);
+      ngtRow.push(dayTypeCount(sh,d,'N7'));
+      totRow.push(Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length);
+    }
+    dayRow.push('','','');ngtRow.push('','','');totRow.push('','','');
+    body.push(dayRow,ngtRow,totRow);
+    const firstCountRow=N;
+    doc.autoTable({
+      head,body,startY:36,margin:{left:20,right:20},
+      styles:{fontSize:7,halign:'center',valign:'middle',cellPadding:2,lineColor:[210,214,220],lineWidth:0.4,textColor:[25,29,36]},
+      headStyles:{fillColor:[238,240,244],textColor:[70,80,95],fontStyle:'bold',fontSize:6.5},
+      columnStyles:{0:{halign:'left',cellWidth:66,fontStyle:'bold'},1:{cellWidth:20}},
+      didParseCell:(data)=>{
+        const r=data.row.index,c=data.column.index;
+        if(data.section==='body'&&r>=firstCountRow){data.cell.styles.fillColor=[238,240,244];data.cell.styles.textColor=[75,83,95];data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';}
+        else if(data.section==='body'&&c>=2&&c<=15){const col=PDF_COL[data.cell.raw];if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}
+        else if(data.section==='body'&&c>=16){data.cell.styles.fillColor=[238,240,244];data.cell.styles.fontStyle='bold';}
+      }
+    });
+
+    // ----- balances table -----
+    let y=doc.lastAutoTable.finalY+18;
+    doc.setFontSize(11);doc.setTextColor(60,60,60);doc.text('Holiday & Vacation balances',24,y);
+    const thead=[['RN','Grp','Hol bal','Hol used','Hol rem','Vac bal','Vac used','Vac rem']];
+    const tbody=[];
+    for(let i=0;i<N;i++){const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
+      tbody.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu]);}
+    doc.autoTable({head:thead,body:tbody,startY:y+6,margin:{left:20,right:20},
+      styles:{fontSize:8,halign:'center',cellPadding:3,lineColor:[210,214,220],lineWidth:0.4},
+      headStyles:{fillColor:[238,240,244],textColor:[70,80,95],fontStyle:'bold'},
+      columnStyles:{0:{halign:'left',cellWidth:90,fontStyle:'bold'}}});
+
+    doc.save(`RN_schedule_${periodLabel()}.pdf`);
+    toast('PDF downloaded');
+  }catch(err){
+    console.error('PDF export failed',err);
+    const prev=document.title;document.title=`RN Schedule ${periodLabel()}`;window.print();
+    setTimeout(()=>{document.title=prev;},500);
+    toast('PDF export failed — used browser print');
+  }
 }
 
 /* ---------- init ---------- */
