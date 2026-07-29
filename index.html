@@ -93,6 +93,12 @@ input[type=date]:focus{border-color:var(--border-3)}
 .banner.ok{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .banner.warn{background:var(--s10-bg);border-color:var(--s10-bd);color:var(--warn)}
 .banner.bad{background:var(--hol-bg);border-color:var(--hol-bd);color:var(--hol-fg)}
+.roster-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;font-size:12px;color:var(--muted)}
+.roster-ctl b{color:var(--text-strong);font-family:'DM Mono',monospace}
+.btn.sm{padding:4px 9px;font-size:11px}
+.roster-hint{color:var(--muted-3);font-weight:300;font-size:11px}
+.btn.danger{background:var(--hol-bg);border-color:var(--hol-bd);color:var(--hol-fg)}
+.btn.danger:hover{background:var(--hol-bg);border-color:var(--hol-fg);color:var(--hol-fg);opacity:.85}
 .sum{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:90px}
 .sum .val{font-size:22px;font-weight:500;color:var(--text-strong);font-family:'DM Mono',monospace;line-height:1}
 .sum .lbl{font-size:10px;color:var(--muted-3);margin-top:4px;font-weight:300;text-transform:uppercase;letter-spacing:0.5px}
@@ -206,7 +212,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 <div class="topbar">
   <div class="branding">
     <div class="title">RN Rotating Schedule</div>
-    <div class="sub">19 nurses · exactly 7 shifts per 2-week cycle · min 8 day slots per day</div>
+    <div class="sub">Rotating RN roster · exactly 7 shifts per 2-week cycle · weekday minimum staffing</div>
   </div>
   <div class="controls">
     <span class="ctrl-label">Cycle 0</span>
@@ -261,6 +267,13 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 
 <div class="banner ok" id="banner"></div>
 
+<div class="roster-ctl">
+  <span>Roster: <b id="rnCount">19</b> RNs</span>
+  <button class="btn sm" onclick="addRN('A')" title="Add an RN to Group A"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>Group A</button>
+  <button class="btn sm" onclick="addRN('B')" title="Add an RN to Group B"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>Group B</button>
+  <span class="roster-hint">Removing an RN: click their name, then “Delete RN”. Schedule adapts automatically.</span>
+</div>
+
 <div style="position:relative">
   <div class="tbl-wrap"><table id="tbl"></table></div>
 </div>
@@ -292,9 +305,12 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     <input class="ninput" id="nInput" type="text">
     <div class="slbl">Group</div>
     <select class="gsel" id="gSel"><option value="A">Group A</option><option value="B">Group B</option></select>
-    <div class="mactions">
-      <button class="btn" onclick="closeNameM()">Cancel</button>
-      <button class="btn accent" onclick="saveName()">Save</button>
+    <div class="mactions" style="justify-content:space-between">
+      <button class="btn danger" onclick="removeRN(mEditIdx)" title="Remove this RN from the roster">Delete RN</button>
+      <span style="display:flex;gap:8px">
+        <button class="btn" onclick="closeNameM()">Cancel</button>
+        <button class="btn accent" onclick="saveName()">Save</button>
+      </span>
     </div>
   </div>
 </div>
@@ -321,7 +337,7 @@ const DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}
 ];
-const N=19;
+let N=19; // number of RNs — kept in sync with names.length
 const SVG_SUN='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 const SVG_MOON='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 
@@ -331,6 +347,7 @@ let names=Array.from({length:N},(_,i)=>`RN ${i+1}`);
 let groups=Array.from({length:N},(_,i)=>i<10?'A':'B');
 let holBal=Array(N).fill(14);
 let vacBal=Array(N).fill(21);
+function syncN(){N=names.length;} // roster size follows the names array
 let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
 let theme='dark';
@@ -354,10 +371,18 @@ function loadState(){
     const raw=localStorage.getItem(STORE_KEY);
     if(!raw)return;
     const s=JSON.parse(raw);
-    if(Array.isArray(s.names)&&s.names.length===N)names=s.names;
-    if(Array.isArray(s.groups)&&s.groups.length===N)groups=s.groups;
-    if(Array.isArray(s.holBal)&&s.holBal.length===N)holBal=s.holBal;
-    if(Array.isArray(s.vacBal)&&s.vacBal.length===N)vacBal=s.vacBal;
+    // restore a roster of any size, keeping the parallel arrays consistent
+    if(Array.isArray(s.names)&&s.names.length>=1){
+      names=s.names.map(String);
+      N=names.length;
+      groups=(Array.isArray(s.groups)?s.groups:[]).slice(0,N);
+      while(groups.length<N)groups.push('A');
+      groups=groups.map(g=>g==='B'?'B':'A');
+      holBal=(Array.isArray(s.holBal)?s.holBal:[]).slice(0,N);
+      while(holBal.length<N)holBal.push(14);
+      vacBal=(Array.isArray(s.vacBal)?s.vacBal:[]).slice(0,N);
+      while(vacBal.length<N)vacBal.push(21);
+    }
     if(typeof s.seed==='number')seed=s.seed;
     if(typeof s.startDate==='string')startDateStr=s.startDate;
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
@@ -374,6 +399,7 @@ function snapshot(){
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
   seed=s.seed;overrides=JSON.parse(JSON.stringify(s.overrides));
+  syncN();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
 function pushHistory(label,before){
@@ -507,20 +533,25 @@ function pickWeekdaySubset(row,freeWk,rem,rng){
    Guarantees: every non-night nurse works exactly `quota` day/eve shifts,
    and every day meets DAILY_MIN whenever the roster has the capacity. */
 function buildSchedule(){
+  syncN();
   const si=document.getElementById('startDate').value;
   const wStart=getMonday(si?new Date(si):new Date());
   const base=addDays(wStart,cycleOffset*14);
   const days14=Array.from({length:14},(_,i)=>addDays(base,i));
   const sh=Array.from({length:N},()=>Array(14).fill('OFF'));
 
-  const aIdxs=[0,1,2,3,4,5,6,7,8,9];
-  const bIdxs=[10,11,12,13,14,15,16,17,18];
-  // continuous rotation in both directions (floor-mod), so cycle N always maps
-  // to the same night pair whether reached forward in time or by navigation
-  const aPairStart=(((cycleOffset*2)%aIdxs.length)+aIdxs.length)%aIdxs.length;
-  const bPairStart=(((cycleOffset*2)%bIdxs.length)+bIdxs.length)%bIdxs.length;
-  const nightA=[aIdxs[aPairStart],aIdxs[(aPairStart+1)%aIdxs.length]];
-  const nightB=[bIdxs[bPairStart%bIdxs.length],bIdxs[(bPairStart+1)%bIdxs.length]];
+  // group membership is dynamic (any roster size / split)
+  const aIdxs=[],bIdxs=[];
+  for(let i=0;i<N;i++)(groups[i]==='A'?aIdxs:bIdxs).push(i);
+  // pick this cycle's night pair from a group, rotating by 2 each cycle.
+  // handles small groups gracefully (0 or 1 member -> that many nurses).
+  function pickPair(idxs){
+    if(idxs.length===0)return [];
+    if(idxs.length===1)return [idxs[0]];
+    const s=(((cycleOffset*2)%idxs.length)+idxs.length)%idxs.length;
+    return [idxs[s],idxs[(s+1)%idxs.length]];
+  }
+  const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
   const nightSet=new Set([...nightA,...nightB]);
 
   for(const i of nightA){[0,1,5,6].forEach(d=>sh[i][d]='N7');[9,10,11].forEach(d=>sh[i][d]='N7');}
@@ -669,6 +700,8 @@ function dayShort(sh,d){ // is this day below minimum on any type?
 function renderTable(){
   const{days,sh,weekStart}=sched;
   document.getElementById('weekLabel').textContent=`Cycle ${cycleOffset} · ${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
+  const na=groups.filter(g=>g==='A').length,nb=N-na;
+  document.getElementById('rnCount').textContent=`${N} (${na} A · ${nb} B)`;
   // the date field holds the ANCHOR (cycle-0 Monday); leave it as-is while browsing
 
   let h='<thead><tr><th class="rn-h">RN</th>';
@@ -753,6 +786,7 @@ function renderBanner(){
 }
 
 function renderTracker(){
+  syncN();
   let h='<thead><tr><th class="tn">RN</th>';
   h+='<th style="color:var(--hol-fg)">Hol balance</th>';
   h+='<th style="color:var(--hol-fg)">Hol used</th>';
@@ -787,6 +821,33 @@ function renderTracker(){
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function setHolBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===holBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Hol balance ${holBal[i]} → ${nv}`,b);holBal[i]=nv;renderTracker();saveState();}
 function setVacBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===vacBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Vac balance ${vacBal[i]} → ${nv}`,b);vacBal[i]=nv;renderTracker();saveState();}
+
+/* ---------- roster: add / remove RNs (schedule self-adapts) ---------- */
+function nextRnName(){ // first "RN k" label not already taken
+  const taken=new Set(names);let k=1;while(taken.has('RN '+k))k++;return 'RN '+k;
+}
+function addRN(g){
+  const grp=g==='B'?'B':'A';
+  const before=snapshot();
+  const nm=nextRnName();
+  names.push(nm);groups.push(grp);holBal.push(14);vacBal.push(21);
+  syncN();
+  overrides={}; // indices/coverage changed — start the cycle fresh
+  pushHistory(`Added ${nm} to Group ${grp}`,before);
+  render();
+  toast(`${nm} added to Group ${grp} — schedule adapted`);
+}
+function removeRN(i){
+  if(N<=1){toast('Cannot remove the last RN');return;}
+  const before=snapshot();
+  const nm=names[i],grp=groups[i];
+  names.splice(i,1);groups.splice(i,1);holBal.splice(i,1);vacBal.splice(i,1);
+  syncN();
+  overrides={}; // remaining RN indices shift — clear stale per-nurse edits
+  pushHistory(`Removed ${nm} (Group ${grp})`,before);
+  closeNameM();render();
+  toast(`${nm} removed — schedule adapted`);
+}
 
 /* ---------- theme ---------- */
 function applyTheme(){
