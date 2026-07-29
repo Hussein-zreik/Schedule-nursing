@@ -153,6 +153,22 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .modal-wrap.open{display:flex}
 .modal{background:var(--panel);border:1px solid var(--border-2);border-radius:12px;padding:1.25rem;min-width:270px;max-width:340px;box-shadow:var(--shadow)}
 .modal h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:1rem}
+.report-modal{max-width:min(96vw,1000px);min-width:min(96vw,680px)}
+.report-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.report-nav{display:flex;align-items:center;gap:8px}
+.report-month{font-size:12px;font-weight:600;color:var(--text-strong);font-family:'DM Mono',monospace;min-width:120px;text-align:center}
+.report-body{overflow:auto;max-height:62vh;border:1px solid var(--border);border-radius:8px}
+.report-body table{border-collapse:collapse;width:100%;min-width:660px;font-size:11px}
+.report-body th{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border-2);padding:7px 8px;font-weight:500;color:var(--muted-2);font-size:10px;text-align:center;white-space:nowrap}
+.report-body th.rl{text-align:left;position:sticky;left:0;z-index:2;background:var(--panel)}
+.report-body td{padding:6px 8px;text-align:center;font-family:'DM Mono',monospace;border-bottom:1px solid var(--border);color:var(--text-2)}
+.report-body td.rl{text-align:left;font-family:'DM Sans',sans-serif;position:sticky;left:0;background:var(--grid-bg);color:var(--text);border-right:1px solid var(--border)}
+.report-body tr:hover td{background:var(--row-hover)}
+.report-body tr:hover td.rl{background:var(--row-hover)}
+.report-body td.z{color:var(--muted-4)}
+.report-body .tot-col{font-weight:600;color:var(--text-strong);background:var(--panel-2)}
+.report-body tfoot td{position:sticky;bottom:0;background:var(--panel-2);border-top:1px solid var(--border-2);font-weight:600;color:var(--text-strong)}
+.report-body tfoot td.rl{background:var(--panel-2)}
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem}
 .mbtn{padding:8px 6px;border:1px solid var(--border-2);border-radius:6px;background:var(--field);cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;transition:all 0.12s;text-align:center}
 .mbtn:hover{background:var(--field-2);color:var(--text-2)}
@@ -256,6 +272,9 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     <button class="btn" onclick="openHistory()" title="View change history">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v6h6M3 9a9 9 0 1 1 2 6"/><path d="M12 7v5l3 2"/></svg>History
     </button>
+    <button class="btn" onclick="openReport()" title="Generate a monthly duty report">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Report
+    </button>
     <span class="divider"></span>
     <button class="btn" onclick="exportPDF()" title="Export / print as PDF">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>PDF
@@ -307,6 +326,23 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 </div>
 </div>
 
+<div class="modal-wrap" id="reportModal">
+  <div class="modal report-modal">
+    <div class="report-head">
+      <h3 style="margin:0">Monthly duty report</h3>
+      <div class="report-nav">
+        <button class="btn icon-only" onclick="reportMonth(-1)" title="Previous month" aria-label="Previous month"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <span id="reportMonthLabel" class="report-month">—</span>
+        <button class="btn icon-only" onclick="reportMonth(1)" title="Next month" aria-label="Next month"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+    <div class="report-body" id="reportBody"></div>
+    <div class="mactions" style="margin-top:1rem">
+      <button class="btn" onclick="downloadReportPDF()" title="Download this report as PDF">Download PDF</button>
+      <button class="btn accent" onclick="closeReport()">Close</button>
+    </div>
+  </div>
+</div>
 <div class="modal-wrap" id="cellModal">
   <div class="modal">
     <h3 id="mTitle">Edit shift</h3>
@@ -551,11 +587,13 @@ function pickWeekdaySubset(row,freeWk,rem,rng){
 /* ---------- schedule generation (hardened) ----------
    Guarantees: every non-night nurse works exactly `quota` day/eve shifts,
    and every day meets DAILY_MIN whenever the roster has the capacity. */
-function buildSchedule(){
+// pure: compute the schedule for a given cycle offset, without touching globals.
+// used both for the live view and to build cross-cycle monthly reports.
+function computeSchedule(off){
   syncN();
   const si=document.getElementById('startDate').value;
   const wStart=getMonday(si?new Date(si):new Date());
-  const base=addDays(wStart,cycleOffset*14);
+  const base=addDays(wStart,off*14);
   const days14=Array.from({length:14},(_,i)=>addDays(base,i));
   const sh=Array.from({length:N},()=>Array(14).fill('OFF'));
 
@@ -567,7 +605,7 @@ function buildSchedule(){
   function pickPair(idxs){
     if(idxs.length===0)return [];
     if(idxs.length===1)return [idxs[0]];
-    const s=(((cycleOffset*2)%idxs.length)+idxs.length)%idxs.length;
+    const s=(((off*2)%idxs.length)+idxs.length)%idxs.length;
     return [idxs[s],idxs[(s+1)%idxs.length]];
   }
   const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
@@ -586,7 +624,7 @@ function buildSchedule(){
     const used=new Set();
     for(let w=0;w<2;w++){
       const satD=w*7+5,sunD=w*7+6;
-      const g=cycleOffset*2+w;                 // global weekend index
+      const g=off*2+w;                         // global weekend index
       const start=(((g*3)%N)+N)%N;             // independent pointer (floor-mod)
       const chosen=[];
       for(let k=0;k<N&&chosen.length<3;k++){
@@ -690,7 +728,7 @@ function buildSchedule(){
   let best=null,bestMax=99;
   for(let att=0;att<30;att++){
     const work=baseSnap.map(r=>r.slice());
-    const arng=mkRng((seed^(cycleOffset*0x9e3779)^(att*0x85ebca6b))>>>0);
+    const arng=mkRng((seed^(off*0x9e3779)^(att*0x85ebca6b))>>>0);
     assignWeek(0,work,arng);assignWeek(1,work,arng);
     repairRuns(work,nightSet);swapRepair(work,nightSet);repairRuns(work,nightSet);
     let mx=0;for(let i=0;i<N;i++){const r=maxRunLen(work[i]);if(r>mx)mx=r;}
@@ -705,8 +743,9 @@ function buildSchedule(){
     if(overrides[k])for(const ri in overrides[k]){const idx=+ri;if(idx>=0&&idx<N)sh[idx][d]=overrides[k][ri];}
   }
 
-  sched={days:days14,sh,weekStart:base};
+  return {days:days14,sh,weekStart:base};
 }
+function buildSchedule(){ sched=computeSchedule(cycleOffset); }
 
 function countForRn(i,type){return sched?sched.sh[i].filter(s=>s===type).length:0;}
 function dayTypeCount(sh,d,type){let c=0;for(let i=0;i<N;i++)if(sh[i][d]===type)c++;return c;}
@@ -949,7 +988,7 @@ function saveName(){
 function closeNameM(){document.getElementById('nameModal').classList.remove('open');}
 
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeCell();closeNameM();closeHistory();}
+  if(e.key==='Escape'){closeCell();closeNameM();closeHistory();closeReport();}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}
 });
 document.querySelectorAll('.modal-wrap').forEach(m=>m.addEventListener('mousedown',e=>{if(e.target===m)m.classList.remove('open');}));
@@ -1211,6 +1250,78 @@ function exportPDF(){
     setTimeout(()=>{document.title=prev;},500);
     toast('PDF export failed — used browser print');
   }
+}
+
+/* ---------- monthly report ---------- */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+let reportY=null,reportM=null; // year, month index (0-11)
+// tally each RN's duties across a full calendar month (spans multiple cycles)
+function monthlyReport(year,month){
+  const first=new Date(year,month,1),last=new Date(year,month+1,0);
+  const anchor=getMonday(startDateStr?new Date(startDateStr):new Date());
+  const cache={};
+  const cyc=o=>(cache[o]||(cache[o]=computeSchedule(o)));
+  const rows=names.map(()=>({total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,REQ:0}));
+  for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1)){
+    const dd=new Date(d);dd.setHours(0,0,0,0);
+    const idx=Math.round((dd-anchor)/86400000);
+    const o=Math.floor(idx/14),di=idx-o*14;
+    const sh=cyc(o).sh;
+    for(let i=0;i<N;i++){
+      const s=sh[i][di];
+      if(WORK_TYPES.has(s))rows[i].total++;
+      if(rows[i][s]!==undefined&&s!=='total')rows[i][s]++;
+    }
+  }
+  return {first,last,rows};
+}
+function openReport(){const t=new Date();reportY=t.getFullYear();reportM=t.getMonth();renderReport();document.getElementById('reportModal').classList.add('open');}
+function closeReport(){document.getElementById('reportModal').classList.remove('open');}
+function reportMonth(delta){reportM+=delta;if(reportM<0){reportM=11;reportY--;}else if(reportM>11){reportM=0;reportY++;}renderReport();}
+function renderReport(){
+  document.getElementById('reportMonthLabel').textContent=`${MONTHS[reportM]} ${reportY}`;
+  const{rows}=monthlyReport(reportY,reportM);
+  const cols=['D6','D7','S8','S9','S10'];
+  let h='<table><thead><tr><th class="rl">RN</th><th>Grp</th><th>Duties</th>';
+  cols.forEach(c=>h+=`<th>${c}</th>`);
+  h+='<th>Nights</th><th>Hol</th><th>Vac</th><th>Req</th></tr></thead><tbody>';
+  const tot={total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,REQ:0};
+  for(let i=0;i<N;i++){
+    const r=rows[i];for(const k in tot)tot[k]+=r[k];
+    const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
+    const z=v=>v?'':' z';
+    h+=`<tr><td class="rl">${escapeHtml(names[i])}</td><td style="color:${gc};font-weight:600">${groups[i]}</td>`;
+    h+=`<td class="tot-col">${r.total}</td>`;
+    cols.forEach(c=>h+=`<td class="${z(r[c]).trim()}">${r[c]}</td>`);
+    h+=`<td class="${z(r.N7).trim()}">${r.N7}</td><td class="${z(r.HOL).trim()}">${r.HOL}</td><td class="${z(r.VAC).trim()}">${r.VAC}</td><td class="${z(r.REQ).trim()}">${r.REQ}</td></tr>`;
+  }
+  h+='</tbody><tfoot><tr><td class="rl">Total</td><td></td>';
+  h+=`<td>${tot.total}</td>`;cols.forEach(c=>h+=`<td>${tot[c]}</td>`);
+  h+=`<td>${tot.N7}</td><td>${tot.HOL}</td><td>${tot.VAC}</td><td>${tot.REQ}</td></tr></tfoot></table>`;
+  document.getElementById('reportBody').innerHTML=h;
+}
+function downloadReportPDF(){
+  const J=window.jspdf&&window.jspdf.jsPDF;
+  const{rows}=monthlyReport(reportY,reportM);
+  const label=`${MONTHS[reportM]} ${reportY}`;
+  if(!J){toast('PDF library offline — cannot export report');return;}
+  try{
+    const doc=new J({orientation:'landscape',unit:'pt',format:'a4'});
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(20,25,35);
+    doc.text(`RN Monthly Duty Report  ·  ${label}`,24,26);
+    const head=[['RN','Grp','Duties','D6','D7','S8','S9','S10','Nights','Hol','Vac','Req']];
+    const body=[];const tot=['Total','',0,0,0,0,0,0,0,0,0,0];
+    for(let i=0;i<N;i++){const r=rows[i];
+      const row=[names[i],groups[i],r.total,r.D6,r.D7,r.S8,r.S9,r.S10,r.N7,r.HOL,r.VAC,r.REQ];
+      body.push(row);for(let k=2;k<row.length;k++)tot[k]+=row[k];}
+    doc.autoTable({head,body,foot:[tot],startY:36,margin:{left:20,right:20},
+      styles:{fontSize:8,halign:'center',cellPadding:3,lineColor:[210,214,220],lineWidth:0.4,textColor:[25,29,36]},
+      headStyles:{fillColor:[238,240,244],textColor:[70,80,95],fontStyle:'bold'},
+      footStyles:{fillColor:[233,236,240],textColor:[20,25,35],fontStyle:'bold'},
+      columnStyles:{0:{halign:'left',cellWidth:96,fontStyle:'bold'},2:{fontStyle:'bold',fillColor:[240,242,246]}}});
+    doc.save(`RN_report_${reportY}-${String(reportM+1).padStart(2,'0')}.pdf`);
+    toast('Report PDF downloaded');
+  }catch(err){console.error('Report PDF failed',err);toast('Report PDF failed');}
 }
 
 /* ---------- init ---------- */
