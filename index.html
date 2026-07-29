@@ -85,7 +85,14 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
 .b-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .b-OFF{background:var(--panel);color:var(--muted-4);border-color:var(--border)}
-.summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem}
+.summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.75rem}
+.banner{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;padding:9px 14px;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem}
+.banner .bic{flex-shrink:0;font-size:13px;margin-top:1px}
+.banner b{font-weight:600}
+.banner .bhint{opacity:.8}
+.banner.ok{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
+.banner.warn{background:var(--s10-bg);border-color:var(--s10-bd);color:var(--warn)}
+.banner.bad{background:var(--hol-bg);border-color:var(--hol-bd);color:var(--hol-fg)}
 .sum{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:90px}
 .sum .val{font-size:22px;font-weight:500;color:var(--text-strong);font-family:'DM Mono',monospace;line-height:1}
 .sum .lbl{font-size:10px;color:var(--muted-3);margin-top:4px;font-weight:300;text-transform:uppercase;letter-spacing:0.5px}
@@ -251,6 +258,8 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 </div>
 
 <div class="summary-row" id="sumBar"></div>
+
+<div class="banner ok" id="banner"></div>
 
 <div style="position:relative">
   <div class="tbl-wrap"><table id="tbl"></table></div>
@@ -695,7 +704,40 @@ function renderTable(){
   `;
 
   renderTracker();
+  renderBanner();
   saveState();
+}
+
+// live health-check banner: watches the current schedule (including manual
+// edits) and surfaces staffing-rule problems that aren't otherwise obvious.
+// Display only — it never changes the schedule.
+function renderBanner(){
+  const{days,sh}=sched;
+  // 1) days below minimum staffing (any shift type under DAILY_MIN)
+  const short=[];
+  for(let d=0;d<14;d++)if(dayShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
+  // 2) nurses whose 2-week working total isn't 7
+  let notSeven=0;
+  for(let i=0;i<N;i++)if(sh[i].filter(s=>WORK_TYPES.has(s)).length!==7)notSeven++;
+  // 3) nurses working more than 3 days in a row
+  let longRuns=0;
+  for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
+
+  const el=document.getElementById('banner');
+  if(!short.length&&!notSeven&&!longRuns){
+    el.className='banner ok';
+    el.innerHTML='<span class="bic">✓</span><span>All staffing rules satisfied.</span>';
+    return;
+  }
+  const parts=[];
+  if(short.length)parts.push(`<b>${short.length}</b> day${short.length>1?'s':''} below minimum staffing (${short.join(', ')})`);
+  if(notSeven)parts.push(`<b>${notSeven}</b> nurse${notSeven>1?'s':''} not at 7 shifts`);
+  if(longRuns)parts.push(`<b>${longRuns}</b> nurse${longRuns>1?'s':''} working 4+ days in a row`);
+  const level=(short.length||notSeven)?'bad':'warn';
+  let hint='';
+  if(short.length)hint='<div class="bhint">Tip: this is usually caused by a manual edit or an unbalanced A/B group split.</div>';
+  el.className='banner '+level;
+  el.innerHTML=`<span class="bic">⚠</span><div>${parts.join(' &nbsp;·&nbsp; ')}${hint}</div>`;
 }
 
 function renderTracker(){
