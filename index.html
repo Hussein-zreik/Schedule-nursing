@@ -538,10 +538,11 @@ let cloudDb=null,unitCode='',cloudUnsub=null,applyingRemote=false,cloudStatus='o
 function initCloud(){
   if(!window.firebase||!window.firebase.firestore){ // SDK still loading (deferred)
     if(cloudTries++<50)return setTimeout(initCloud,150);
-    cloudStatus='unavailable';updateCloudUI();return;
+    cloudStatus='unavailable';pwLoaded=true;lockRefreshMode();updateCloudUI();return;
   }
   try{ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig); cloudDb=firebase.firestore(); }
-  catch(e){ cloudStatus='unavailable';updateCloudUI();return; }
+  catch(e){ cloudStatus='unavailable';pwLoaded=true;lockRefreshMode();updateCloudUI();return; }
+  loadCloudPassword(); // the app password is shared for everyone via the cloud
   try{ const saved=localStorage.getItem('rn_unit'); if(saved)connectCloud(saved); else updateCloudUI(); }
   catch(e){ updateCloudUI(); }
 }
@@ -596,8 +597,9 @@ function openCloud(){updateCloudUI();const inp=document.getElementById('unitInpu
 function closeCloud(){document.getElementById('cloudModal').classList.remove('open');}
 function connectFromInput(){const c=sanitizeCode(document.getElementById('unitInput').value);if(!c){toast('Enter a unit code first');return;}connectCloud(c);toast('Cloud sync on · '+c);}
 
-/* ---------- password lock (client-side gate) ---------- */
-const PW_KEY='rn_pw_hash';
+/* ---------- password lock (shared for everyone, stored in the cloud) ---------- */
+const PW_KEY='rn_pw_hash';        // local cache of the shared hash (for speed / offline)
+let pwLoaded=false,cloudPwHash=null,pwUnsub=null;
 async function hashPw(s){
   try{ if(window.crypto&&crypto.subtle){
     const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rn-salt:'+s));
@@ -605,11 +607,34 @@ async function hashPw(s){
   } }catch(e){}
   let h=5381>>>0;const t='rn-salt:'+s;for(let i=0;i<t.length;i++)h=(((h<<5)+h)+t.charCodeAt(i))>>>0;return 'f'+h.toString(16);
 }
+function effectiveHash(){return cloudPwHash||localStorage.getItem(PW_KEY)||null;} // cloud wins once loaded
+function loadCloudPassword(){ // subscribe to the shared password doc so all devices agree
+  if(!cloudDb){pwLoaded=true;lockRefreshMode();return;}
+  try{
+    pwUnsub=cloudDb.collection('config').doc('app').onSnapshot(doc=>{
+      cloudPwHash=(doc.exists&&doc.data()&&doc.data().pwHash)?doc.data().pwHash:null;
+      if(cloudPwHash){try{localStorage.setItem(PW_KEY,cloudPwHash);}catch(e){}}
+      pwLoaded=true;lockRefreshMode();
+    },err=>{console.error('password load error',err);pwLoaded=true;lockRefreshMode();});
+  }catch(e){pwLoaded=true;lockRefreshMode();}
+}
+async function setCloudPassword(hash){ // write the shared password for everyone
+  try{if(cloudDb)await cloudDb.collection('config').doc('app').set({pwHash:hash,updatedAt:Date.now()},{merge:true});}
+  catch(e){console.error('password save error',e);}
+  cloudPwHash=hash;try{localStorage.setItem(PW_KEY,hash);}catch(e){}
+}
 function lockEl(id){return document.getElementById(id);}
+function setLockChecking(){
+  lockEl('lockSub').textContent='Connecting…';
+  lockEl('lockBtn').textContent='Please wait';lockEl('lockBtn').disabled=true;
+  lockEl('pw0').style.display='none';lockEl('pw2').style.display='none';
+  lockEl('lockChange').style.display='none';lockEl('lockCancel').style.display='none';
+  lockEl('lockScreen').dataset.mode='checking';
+}
 function setLockMode(mode){ // 'enter' | 'create' | 'change'
-  const has=!!localStorage.getItem(PW_KEY);
+  const has=!!effectiveHash();
   const m=mode||(has?'enter':'create');
-  lockEl('lockErr').textContent='';
+  lockEl('lockErr').textContent='';lockEl('lockBtn').disabled=false;
   lockEl('pw0').value='';lockEl('pw1').value='';lockEl('pw2').value='';
   lockEl('pw0').style.display=(m==='change')?'':'none';
   lockEl('pw1').placeholder=(m==='enter')?'Password':'New password';
@@ -618,30 +643,40 @@ function setLockMode(mode){ // 'enter' | 'create' | 'change'
   lockEl('lockCancel').style.display=(m==='change')?'':'none';
   lockEl('lockBtn').textContent=(m==='enter')?'Unlock':(m==='create'?'Set password':'Save password');
   lockEl('lockSub').textContent=(m==='enter')?'Enter password to continue':
-    (m==='create'?'Create a password to protect this schedule':'Change your password');
+    (m==='create'?'Set a password for your team (shared across all devices)':'Change the shared password');
   lockEl('lockScreen').dataset.mode=m;
   setTimeout(()=>{(m==='change'?lockEl('pw0'):lockEl('pw1')).focus();},40);
 }
+function lockRefreshMode(){ // called when the cloud password status becomes known
+  const ls=lockEl('lockScreen');
+  if(ls.classList.contains('unlocked'))return;
+  if(ls.dataset.mode==='change')return; // don't disturb an open change form
+  if(!pwLoaded&&effectiveHash()===null){setLockChecking();return;}
+  setLockMode(effectiveHash()?'enter':'create');
+}
 async function lockSubmit(){
   const mode=lockEl('lockScreen').dataset.mode||'enter';
+  if(mode==='checking')return;
   const err=lockEl('lockErr'),p1=lockEl('pw1').value;
   if(mode==='enter'){
     if(!p1){err.textContent='Enter your password';return;}
-    if(await hashPw(p1)===localStorage.getItem(PW_KEY)){unlockApp();}
+    if(await hashPw(p1)===effectiveHash()){unlockApp();}
     else{err.textContent='Wrong password';lockEl('pw1').value='';lockEl('pw1').focus();}
     return;
   }
-  // create or change
+  // create or change (writes the shared password to the cloud)
   const p2=lockEl('pw2').value;
   if(mode==='change'){
     const cur=lockEl('pw0').value;
-    if(await hashPw(cur)!==localStorage.getItem(PW_KEY)){err.textContent='Current password is wrong';return;}
+    if(await hashPw(cur)!==effectiveHash()){err.textContent='Current password is wrong';return;}
   }
   if(p1.length<4){err.textContent='Use at least 4 characters';return;}
   if(p1!==p2){err.textContent='Passwords do not match';return;}
-  localStorage.setItem(PW_KEY,await hashPw(p1));
-  if(mode==='change'){toast('Password changed');setLockMode('enter');unlockApp();}
-  else{unlockApp();}
+  lockEl('lockBtn').disabled=true;
+  await setCloudPassword(await hashPw(p1));
+  lockEl('lockBtn').disabled=false;
+  if(mode==='change'){toast('Shared password changed');setLockMode('enter');unlockApp();}
+  else{toast('Shared password set');unlockApp();}
 }
 function unlockApp(){
   try{sessionStorage.setItem('rn_unlocked','1');}catch(e){}
@@ -650,13 +685,14 @@ function unlockApp(){
 }
 function lockApp(){ // re-lock manually
   try{sessionStorage.removeItem('rn_unlocked');}catch(e){}
-  setLockMode('enter');
+  lockRefreshMode();
   lockEl('lockScreen').classList.remove('unlocked');
 }
 function lockInit(){
   let unlocked=false;try{unlocked=sessionStorage.getItem('rn_unlocked')==='1';}catch(e){}
   if(unlocked){lockEl('lockScreen').classList.add('unlocked');return;}
-  setLockMode(); // enter if a password exists, else create
+  // if we already have a cached hash, show Enter immediately; otherwise wait for the cloud
+  if(effectiveHash()!==null)setLockMode('enter'); else setLockChecking();
 }
 // Enter key submits from any lock field
 ['pw0','pw1','pw2'].forEach(id=>{const e=lockEl(id);if(e)e.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();lockSubmit();}});});
