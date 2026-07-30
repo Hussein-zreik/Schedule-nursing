@@ -386,7 +386,8 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DAY_TYPES=['D6','D7','S8','S9','S10'];
 const ALL_TYPES=['D6','D7','S8','S9','S10','N7','HOL','VAC','REQ','OFF'];
-const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','N7']);
+const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','N7']); // actual working shifts (drives scheduling)
+const ENTRY_TYPES=new Set(['D6','D7','S8','S9','S10','N7','HOL','VAC']); // scheduled entries incl. holiday/vacation (drives W1/W2/Total counts)
 const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
 const DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
@@ -769,8 +770,8 @@ function renderTable(){
   let allOk=true;
   for(let i=0;i<N;i++){
     const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
-    const w1=sh[i].slice(0,7).filter(s=>WORK_TYPES.has(s)).length;
-    const w2=sh[i].slice(7,14).filter(s=>WORK_TYPES.has(s)).length;
+    const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
+    const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
     const tot=w1+w2;
     const ok=tot===7;
     if(!ok)allOk=false;
@@ -794,10 +795,10 @@ function renderTable(){
 
   document.getElementById('tbl').innerHTML=h;
 
-  const w1t=Array.from({length:N},(_,i)=>sh[i].slice(0,7).filter(s=>WORK_TYPES.has(s)).length).reduce((a,b)=>a+b,0);
-  const w2t=Array.from({length:N},(_,i)=>sh[i].slice(7,14).filter(s=>WORK_TYPES.has(s)).length).reduce((a,b)=>a+b,0);
+  const w1t=Array.from({length:N},(_,i)=>sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length).reduce((a,b)=>a+b,0);
+  const w2t=Array.from({length:N},(_,i)=>sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length).reduce((a,b)=>a+b,0);
   const nt=Array.from({length:N},(_,i)=>sh[i].filter(s=>s==='N7').length).reduce((a,b)=>a+b,0);
-  const comp=Array.from({length:N},(_,i)=>sh[i].filter(s=>WORK_TYPES.has(s)).length).filter(n=>n===7).length;
+  const comp=Array.from({length:N},(_,i)=>sh[i].filter(s=>ENTRY_TYPES.has(s)).length).filter(n=>n===7).length;
   document.getElementById('sumBar').innerHTML=`
     <div class="sum"><div class="val">${N}</div><div class="lbl">Total RNs</div></div>
     <div class="sum"><div class="val">${w1t}</div><div class="lbl">Week 1</div></div>
@@ -821,7 +822,7 @@ function renderBanner(){
   for(let d=0;d<14;d++)if(dayShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
   // 2) nurses whose 2-week working total isn't 7
   let notSeven=0;
-  for(let i=0;i<N;i++)if(sh[i].filter(s=>WORK_TYPES.has(s)).length!==7)notSeven++;
+  for(let i=0;i<N;i++)if(sh[i].filter(s=>ENTRY_TYPES.has(s)).length!==7)notSeven++;
   // 3) nurses working more than 3 days in a row
   let longRuns=0;
   for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
@@ -1009,8 +1010,8 @@ function exportRows(){
   const header=['RN','Group',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Total'];
   rows.push(header);
   for(let i=0;i<N;i++){
-    const w1=sh[i].slice(0,7).filter(s=>WORK_TYPES.has(s)).length;
-    const w2=sh[i].slice(7,14).filter(s=>WORK_TYPES.has(s)).length;
+    const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
+    const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
     rows.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
   }
   const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total per day',''];
@@ -1095,8 +1096,10 @@ async function exportExcel(){
         else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
       }
       // W1 / W2 / Total  — live formulas (count working = non-blank minus HOL/VAC)
-      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"HOL")-COUNTIF(C${r}:I${r},"VAC")-COUNTIF(C${r}:I${r},"REQ")`;
-      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"HOL")-COUNTIF(J${r}:P${r},"VAC")-COUNTIF(J${r}:P${r},"REQ")`;
+      // W1/W2 count scheduled ENTRIES: work shifts + Holiday + Vacation
+      // (OFF is blank so COUNTA skips it; only Req off is excluded)
+      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"REQ")`;
+      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"REQ")`;
       [['Q',w1r],['R',w2r],['S',`Q${r}+R${r}`]].forEach(([col,f],k)=>{
         const cell=ws.getCell(r,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
         cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
@@ -1204,8 +1207,8 @@ function exportPDF(){
     const head=[['RN','Grp',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Tot']];
     const body=[];
     for(let i=0;i<N;i++){
-      const w1=sh[i].slice(0,7).filter(s=>WORK_TYPES.has(s)).length;
-      const w2=sh[i].slice(7,14).filter(s=>WORK_TYPES.has(s)).length;
+      const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
+      const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
       body.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
     }
     const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total/day',''];
