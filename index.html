@@ -159,6 +159,15 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .wk-num{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted-2);font-weight:500}
 .wk-ok{color:var(--accent)!important}
 .wk-warn{color:var(--warn)!important}
+.lock-wrap{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:1rem}
+.lock-wrap.unlocked{display:none}
+.lock-box{background:var(--panel);border:1px solid var(--border-2);border-radius:12px;padding:1.5rem;width:100%;max-width:320px;box-shadow:var(--shadow)}
+.lock-title{font-size:16px;font-weight:600;color:var(--text-strong);margin-bottom:4px}
+.lock-sub{font-size:12px;color:var(--muted-2);margin-bottom:1rem;line-height:1.5}
+.lock-err{font-size:11px;color:var(--neg);min-height:15px;margin:2px 0 8px}
+.lock-links{display:flex;justify-content:space-between;margin-top:12px}
+.lock-links a{font-size:11px;color:var(--muted-2);cursor:pointer}
+.lock-links a:hover{color:var(--text-2);text-decoration:underline}
 .modal-wrap{display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:var(--scrim);padding:1rem}
 .modal-wrap.open{display:flex}
 .modal{background:var(--panel);border:1px solid var(--border-2);border-radius:12px;padding:1.25rem;min-width:270px;max-width:340px;box-shadow:var(--shadow)}
@@ -252,6 +261,18 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 </style>
 </head>
 <body>
+<div id="lockScreen" class="lock-wrap">
+  <div class="lock-box">
+    <div class="lock-title">RN Rotating Schedule</div>
+    <div class="lock-sub" id="lockSub">Enter password</div>
+    <input class="ninput" id="pw0" type="password" placeholder="Current password" autocomplete="off" style="display:none">
+    <input class="ninput" id="pw1" type="password" placeholder="Password" autocomplete="off">
+    <input class="ninput" id="pw2" type="password" placeholder="Confirm password" autocomplete="off" style="display:none">
+    <div class="lock-err" id="lockErr"></div>
+    <button class="btn accent" id="lockBtn" style="width:100%;justify-content:center" onclick="lockSubmit()">Unlock</button>
+    <div class="lock-links"><a id="lockChange" onclick="setLockMode('change')">Change password</a><a id="lockCancel" style="display:none" onclick="setLockMode('enter')">Cancel</a></div>
+  </div>
+</div>
 <div class="app" id="appRoot">
 <h2 class="sr-only">RN rotating schedule with holiday and vacation tracker</h2>
 <div class="topbar">
@@ -294,6 +315,9 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
     </button>
     <button class="btn" onclick="exportExcel()" title="Export as Excel spreadsheet">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg>Excel
+    </button>
+    <button class="btn icon-only" onclick="lockApp()" aria-label="Lock the app" title="Lock the app (require password)">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
     </button>
     <button class="btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle light or dark theme" title="Toggle theme"></button>
   </div>
@@ -571,6 +595,71 @@ function updateCloudUI(){
 function openCloud(){updateCloudUI();const inp=document.getElementById('unitInput');if(inp)inp.value=unitCode;document.getElementById('cloudModal').classList.add('open');}
 function closeCloud(){document.getElementById('cloudModal').classList.remove('open');}
 function connectFromInput(){const c=sanitizeCode(document.getElementById('unitInput').value);if(!c){toast('Enter a unit code first');return;}connectCloud(c);toast('Cloud sync on · '+c);}
+
+/* ---------- password lock (client-side gate) ---------- */
+const PW_KEY='rn_pw_hash';
+async function hashPw(s){
+  try{ if(window.crypto&&crypto.subtle){
+    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rn-salt:'+s));
+    return 's'+[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  } }catch(e){}
+  let h=5381>>>0;const t='rn-salt:'+s;for(let i=0;i<t.length;i++)h=(((h<<5)+h)+t.charCodeAt(i))>>>0;return 'f'+h.toString(16);
+}
+function lockEl(id){return document.getElementById(id);}
+function setLockMode(mode){ // 'enter' | 'create' | 'change'
+  const has=!!localStorage.getItem(PW_KEY);
+  const m=mode||(has?'enter':'create');
+  lockEl('lockErr').textContent='';
+  lockEl('pw0').value='';lockEl('pw1').value='';lockEl('pw2').value='';
+  lockEl('pw0').style.display=(m==='change')?'':'none';
+  lockEl('pw1').placeholder=(m==='enter')?'Password':'New password';
+  lockEl('pw2').style.display=(m==='enter')?'none':'';
+  lockEl('lockChange').style.display=(m==='enter'&&has)?'':'none';
+  lockEl('lockCancel').style.display=(m==='change')?'':'none';
+  lockEl('lockBtn').textContent=(m==='enter')?'Unlock':(m==='create'?'Set password':'Save password');
+  lockEl('lockSub').textContent=(m==='enter')?'Enter password to continue':
+    (m==='create'?'Create a password to protect this schedule':'Change your password');
+  lockEl('lockScreen').dataset.mode=m;
+  setTimeout(()=>{(m==='change'?lockEl('pw0'):lockEl('pw1')).focus();},40);
+}
+async function lockSubmit(){
+  const mode=lockEl('lockScreen').dataset.mode||'enter';
+  const err=lockEl('lockErr'),p1=lockEl('pw1').value;
+  if(mode==='enter'){
+    if(!p1){err.textContent='Enter your password';return;}
+    if(await hashPw(p1)===localStorage.getItem(PW_KEY)){unlockApp();}
+    else{err.textContent='Wrong password';lockEl('pw1').value='';lockEl('pw1').focus();}
+    return;
+  }
+  // create or change
+  const p2=lockEl('pw2').value;
+  if(mode==='change'){
+    const cur=lockEl('pw0').value;
+    if(await hashPw(cur)!==localStorage.getItem(PW_KEY)){err.textContent='Current password is wrong';return;}
+  }
+  if(p1.length<4){err.textContent='Use at least 4 characters';return;}
+  if(p1!==p2){err.textContent='Passwords do not match';return;}
+  localStorage.setItem(PW_KEY,await hashPw(p1));
+  if(mode==='change'){toast('Password changed');setLockMode('enter');unlockApp();}
+  else{unlockApp();}
+}
+function unlockApp(){
+  try{sessionStorage.setItem('rn_unlocked','1');}catch(e){}
+  lockEl('lockScreen').classList.add('unlocked');
+  lockEl('pw0').value='';lockEl('pw1').value='';lockEl('pw2').value='';lockEl('lockErr').textContent='';
+}
+function lockApp(){ // re-lock manually
+  try{sessionStorage.removeItem('rn_unlocked');}catch(e){}
+  setLockMode('enter');
+  lockEl('lockScreen').classList.remove('unlocked');
+}
+function lockInit(){
+  let unlocked=false;try{unlocked=sessionStorage.getItem('rn_unlocked')==='1';}catch(e){}
+  if(unlocked){lockEl('lockScreen').classList.add('unlocked');return;}
+  setLockMode(); // enter if a password exists, else create
+}
+// Enter key submits from any lock field
+['pw0','pw1','pw2'].forEach(id=>{const e=lockEl(id);if(e)e.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();lockSubmit();}});});
 
 /* ---------- change memory (history + undo) ---------- */
 function snapshot(){
@@ -1488,6 +1577,7 @@ function downloadReportPDF(){
 /* ---------- init ---------- */
 loadState();
 applyTheme();
+lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it
 if(!startDateStr){startDateStr=isoKey(getMonday(new Date()));}
 document.getElementById('startDate').value=startDateStr;
