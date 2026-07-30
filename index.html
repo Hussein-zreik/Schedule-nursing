@@ -126,6 +126,11 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
 .rn-name{cursor:pointer;font-weight:400;color:var(--text-2);font-size:12px}
 .rn-name:hover{color:var(--text-strong);text-decoration:underline;text-underline-offset:2px}
 .rn-grp{font-size:9px;margin-left:4px;font-family:'DM Mono',monospace;font-weight:500}
+.drag-h{cursor:grab;color:var(--muted-3);font-size:12px;margin-right:6px;user-select:none;display:inline-block;line-height:1}
+.drag-h:hover{color:var(--text-2)}
+.drag-h:active{cursor:grabbing}
+tbody tr.drag-over td{box-shadow:inset 0 2px 0 0 var(--accent)}
+tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .sc{cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:3px 6px;border-radius:4px;display:inline-block;min-width:32px;transition:opacity 0.1s,transform .05s;border:1px solid transparent}
 .sc:hover{opacity:0.75}
 .sc:active{transform:scale(.94)}
@@ -309,7 +314,7 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
   <span>Roster: <b id="rnCount">19</b> RNs</span>
   <button class="btn sm" onclick="addRN('A')" title="Add an RN to Group A"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>Group A</button>
   <button class="btn sm" onclick="addRN('B')" title="Add an RN to Group B"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>Group B</button>
-  <span class="roster-hint">Removing an RN: click their name, then “Delete RN”. Schedule adapts automatically.</span>
+  <span class="roster-hint">Drag the ⠿ handle to reorder a row (RN keeps their duties). Click a name to rename, move, or delete.</span>
 </div>
 
 <div style="position:relative">
@@ -360,6 +365,11 @@ tbody tr:hover td.rn-col{background:var(--row-hover)}
     <input class="ninput" id="nInput" type="text">
     <div class="slbl">Group</div>
     <select class="gsel" id="gSel"><option value="A">Group A</option><option value="B">Group B</option></select>
+    <div class="slbl">Position in list</div>
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <button class="btn sm" onclick="moveRn(-1)" title="Move up one position">▲ Move up</button>
+      <button class="btn sm" onclick="moveRn(1)" title="Move down one position">▼ Move down</button>
+    </div>
     <div class="mactions" style="justify-content:space-between">
       <button class="btn danger" onclick="removeRN(mEditIdx)" title="Remove this RN from the roster">Delete RN</button>
       <span style="display:flex;gap:8px">
@@ -403,7 +413,15 @@ let names=Array.from({length:N},(_,i)=>`RN ${i+1}`);
 let groups=Array.from({length:N},(_,i)=>i<10?'A':'B');
 let holBal=Array(N).fill(14);
 let vacBal=Array(N).fill(21);
+let order=Array.from({length:N},(_,i)=>i); // display order of rows (permutation of RN indices); does not affect generation
 function syncN(){N=names.length;} // roster size follows the names array
+function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
+  if(!Array.isArray(order))order=[];
+  const seen=new Set(),clean=[];
+  for(const x of order)if(Number.isInteger(x)&&x>=0&&x<N&&!seen.has(x)){seen.add(x);clean.push(x);}
+  for(let i=0;i<N;i++)if(!seen.has(i))clean.push(i);
+  order=clean;
+}
 let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
 let theme='dark';
@@ -416,7 +434,7 @@ const HIST_MAX=100;
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY,JSON.stringify({
-      names,groups,holBal,vacBal,seed,
+      names,groups,holBal,vacBal,order,seed,
       startDate:document.getElementById('startDate').value||startDateStr,
       theme,overrides,history
     }));
@@ -444,18 +462,21 @@ function loadState(){
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
     if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
     if(Array.isArray(s.history))history=s.history;
+    if(Array.isArray(s.order))order=s.order.slice();
+    normalizeOrder();
   }catch(e){/* ignore corrupt state */}
 }
 
 /* ---------- change memory (history + undo) ---------- */
 function snapshot(){
-  return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],
+  return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],order:[...order],
           seed,overrides:JSON.parse(JSON.stringify(overrides))};
 }
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
   seed=s.seed;overrides=JSON.parse(JSON.stringify(s.overrides));
-  syncN();
+  order=Array.isArray(s.order)?[...s.order]:[];
+  syncN();normalizeOrder();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
 function pushHistory(label,before){
@@ -768,7 +789,8 @@ function renderTable(){
   h+='<th class="sep" style="font-size:10px;min-width:30px">W1</th><th class="sep" style="font-size:10px;min-width:30px">W2</th><th class="sep" style="font-size:10px;min-width:36px">Total</th></tr></thead><tbody>';
 
   let allOk=true;
-  for(let i=0;i<N;i++){
+  normalizeOrder();
+  order.forEach((i,pos)=>{
     const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
     const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
     const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
@@ -776,10 +798,10 @@ function renderTable(){
     const ok=tot===7;
     if(!ok)allOk=false;
     const wc=ok?'wk-ok':'wk-warn';
-    h+=`<tr><td class="rn-col"><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
+    h+=`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,${pos})"><td class="rn-col"><span class="drag-h" draggable="true" ondragstart="rowDragStart(event,${pos})" ondragend="rowDragEnd()" title="Drag to reorder">⠿</span><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
     for(let d=0;d<14;d++){const s=sh[i][d];h+=`<td onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
-  }
+  });
 
   h+='<tr class="count-row"><td class="lbl-c">Day shifts</td>';
   for(let d=0;d<14;d++){const c=Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length;h+=`<td class="day-c${dayShort(sh,d)?' short':''}">${c}</td>`;}
@@ -855,7 +877,8 @@ function renderTracker(){
   h+='<th style="color:var(--vac-fg)">Vac remaining</th>';
   h+='</tr></thead><tbody>';
 
-  for(let i=0;i<N;i++){
+  normalizeOrder();
+  for(const i of order){
     const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
     const holUsed=countForRn(i,'HOL');
     const vacUsed=countForRn(i,'VAC');
@@ -890,7 +913,8 @@ function addRN(g){
   const before=snapshot();
   const nm=nextRnName();
   names.push(nm);groups.push(grp);holBal.push(14);vacBal.push(21);
-  syncN();
+  order.push(names.length-1); // show the new RN at the end of the list
+  syncN();normalizeOrder();
   overrides={}; // indices/coverage changed — start the cycle fresh
   pushHistory(`Added ${nm} to Group ${grp}`,before);
   render();
@@ -901,11 +925,34 @@ function removeRN(i){
   const before=snapshot();
   const nm=names[i],grp=groups[i];
   names.splice(i,1);groups.splice(i,1);holBal.splice(i,1);vacBal.splice(i,1);
-  syncN();
+  order=order.filter(x=>x!==i).map(x=>x>i?x-1:x); // drop it and re-index the rest
+  syncN();normalizeOrder();
   overrides={}; // remaining RN indices shift — clear stale per-nurse edits
   pushHistory(`Removed ${nm} (Group ${grp})`,before);
   closeNameM();render();
   toast(`${nm} removed — schedule adapted`);
+}
+
+/* ---------- reorder RNs in the list (drag whole row, or modal up/down) ----------
+   Only the DISPLAY order changes; each RN keeps their duties. */
+let dragSrcPos=null;
+function rowDragStart(e,pos){dragSrcPos=pos;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(pos));}catch(_){}}
+function rowDragEnd(){dragSrcPos=null;document.querySelectorAll('#tbl tr.drag-over').forEach(r=>r.classList.remove('drag-over'));}
+function rowDragOver(e){if(dragSrcPos===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';const tr=e.currentTarget;document.querySelectorAll('#tbl tr.drag-over').forEach(r=>{if(r!==tr)r.classList.remove('drag-over');});tr.classList.add('drag-over');}
+function rowDrop(e,pos){e.preventDefault();const from=dragSrcPos;rowDragEnd();if(from===null||from===pos)return;moveInOrder(from,pos);}
+function moveInOrder(from,to){
+  if(from<0||from>=order.length||to<0||to>=order.length)return;
+  const before=snapshot();
+  const o=[...order],[m]=o.splice(from,1);o.splice(to,0,m);order=o;
+  pushHistory(`Reordered ${names[m]} in the list`,before);
+  renderTable();saveState();
+}
+// move the RN currently open in the editor up/down one position in the list
+function moveRn(delta){
+  if(mEditIdx===null)return;
+  const pos=order.indexOf(mEditIdx),to=pos+delta;
+  if(pos<0||to<0||to>=order.length)return;
+  moveInOrder(pos,to);
 }
 
 /* ---------- theme ---------- */
@@ -1009,7 +1056,8 @@ function exportRows(){
   const rows=[];
   const header=['RN','Group',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Total'];
   rows.push(header);
-  for(let i=0;i<N;i++){
+  normalizeOrder();
+  for(const i of order){
     const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
     const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
     rows.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
@@ -1026,7 +1074,8 @@ function exportRows(){
 }
 function trackerRows(){
   const rows=[['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining']];
-  for(let i=0;i<N;i++){
+  normalizeOrder();
+  for(const i of order){
     const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
     rows.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu]);
   }
@@ -1081,9 +1130,10 @@ async function exportExcel(){
     head.forEach((h,c)=>{const cell=ws.getCell(2,c+1);cell.value=h;cell.fill=solid(P.header);
       cell.font={bold:true,size:10,color:{argb:P.headerFg}};cell.alignment={horizontal:'center'};cell.border=allBorder;});
     ws.getCell(2,1).alignment={horizontal:'left'};
-    // data rows 3..21
-    for(let i=0;i<N;i++){
-      const r=3+i;
+    // data rows 3..(2+N), in display order
+    normalizeOrder();
+    order.forEach((i,pos)=>{
+      const r=3+pos;
       const nameC=ws.getCell(r,1);nameC.value=names[i];nameC.fill=solid(P.grid);
       nameC.font={color:{argb:P.gridFg},bold:true,size:11};nameC.border=allBorder;
       const grpC=ws.getCell(r,2);grpC.value=groups[i];grpC.fill=solid(P.grid);
@@ -1104,7 +1154,7 @@ async function exportExcel(){
         const cell=ws.getCell(r,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
         cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
       });
-    }
+    });
     // count rows 22 (day),23 (night),24 (total) — live formulas per day column
     const dayR=3+N,ngtR=dayR+1,totR=dayR+2;
     const label=(r,txt)=>{const c=ws.getCell(r,1);c.value=txt;ws.mergeCells(r,1,r,2);
@@ -1139,8 +1189,8 @@ async function exportExcel(){
     const bh=['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining'];
     bh.forEach((h,c)=>{const cell=bs.getCell(2,c+1);cell.value=h;cell.fill=solid(P.header);
       cell.font={bold:true,size:10,color:{argb:P.headerFg}};cell.alignment={horizontal:'center'};cell.border=allBorder;});
-    for(let i=0;i<N;i++){
-      const r=3+i;
+    order.forEach((i,pos)=>{
+      const r=3+pos;
       const set=(col,val,opt)=>{const c=bs.getCell(r,col);c.value=val;c.border=allBorder;
         c.fill=solid(P.grid);c.font=Object.assign({color:{argb:P.gridFg},size:10},opt||{});
         c.alignment={horizontal:col<=2?(col===1?'left':'center'):'center'};return c;};
@@ -1151,7 +1201,7 @@ async function exportExcel(){
       set(6,vacBal[i]);
       set(7,{formula:`COUNTIF(Schedule!C${r}:P${r},"VAC")`});
       set(8,{formula:`F${r}-G${r}`},{bold:true});
-    }
+    });
     [3,4,5,6,7,8].forEach(c=>bs.getColumn(c).width=13);bs.getColumn(1).width=15;bs.getColumn(2).width=7;
     // RULES: remaining < 0 red, low balance amber
     bs.addConditionalFormatting({ref:`E3:E${2+N}`,rules:[
@@ -1206,7 +1256,8 @@ function exportPDF(){
     // ----- schedule table -----
     const head=[['RN','Grp',...days.map((d,i)=>`${DAYS[i%7]} ${fmt(d)}`),'W1','W2','Tot']];
     const body=[];
-    for(let i=0;i<N;i++){
+    normalizeOrder();
+    for(const i of order){
       const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
       const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
       body.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
@@ -1238,7 +1289,7 @@ function exportPDF(){
     doc.setFontSize(11);doc.setTextColor(60,60,60);doc.text('Holiday & Vacation balances',24,y);
     const thead=[['RN','Grp','Hol bal','Hol used','Hol rem','Vac bal','Vac used','Vac rem']];
     const tbody=[];
-    for(let i=0;i<N;i++){const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
+    for(const i of order){const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
       tbody.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu]);}
     doc.autoTable({head:thead,body:tbody,startY:y+6,margin:{left:20,right:20},
       styles:{fontSize:8,halign:'center',cellPadding:3,lineColor:[210,214,220],lineWidth:0.4},
@@ -1289,7 +1340,8 @@ function renderReport(){
   cols.forEach(c=>h+=`<th>${c}</th>`);
   h+='<th>Nights</th><th>Hol</th><th>Vac</th><th>Req</th></tr></thead><tbody>';
   const tot={total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,REQ:0};
-  for(let i=0;i<N;i++){
+  normalizeOrder();
+  for(const i of order){
     const r=rows[i];for(const k in tot)tot[k]+=r[k];
     const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
     const z=v=>v?'':' z';
@@ -1314,7 +1366,8 @@ function downloadReportPDF(){
     doc.text(`RN Monthly Duty Report  ·  ${label}`,24,26);
     const head=[['RN','Grp','Duties','D6','D7','S8','S9','S10','Nights','Hol','Vac','Req']];
     const body=[];const tot=['Total','',0,0,0,0,0,0,0,0,0,0];
-    for(let i=0;i<N;i++){const r=rows[i];
+    normalizeOrder();
+    for(const i of order){const r=rows[i];
       const row=[names[i],groups[i],r.total,r.D6,r.D7,r.S8,r.S9,r.S10,r.N7,r.HOL,r.VAC,r.REQ];
       body.push(row);for(let k=2;k<row.length;k++)tot[k]+=row[k];}
     doc.autoTable({head,body,foot:[tot],startY:36,margin:{left:20,right:20},
