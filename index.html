@@ -824,12 +824,13 @@ function computeSchedule(off){
   for(let i=0;i<N;i++)if(!seen.has(i))seq.push(i);
   const aIdxs=[],bIdxs=[];
   for(const i of seq)(groups[i]==='A'?aIdxs:bIdxs).push(i);
-  // pick this cycle's night pair from a group, rotating by 2 each cycle.
+  // pick a cycle's night pair from a group, rotating by 2 each cycle.
+  // `o` defaults to the current cycle; pass o-1 to get the previous cycle's pair.
   // handles small groups gracefully (0 or 1 member -> that many nurses).
-  function pickPair(idxs){
+  function pickPair(idxs,o=off){
     if(idxs.length===0)return [];
     if(idxs.length===1)return [idxs[0]];
-    const s=(((off*2)%idxs.length)+idxs.length)%idxs.length;
+    const s=(((o*2)%idxs.length)+idxs.length)%idxs.length;
     return [idxs[s],idxs[(s+1)%idxs.length]];
   }
   const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
@@ -837,6 +838,16 @@ function computeSchedule(off){
 
   for(const i of nightA){[0,1,5,6].forEach(d=>sh[i][d]='N7');[9,10,11].forEach(d=>sh[i][d]='N7');}
   for(const i of nightB){[2,3,4].forEach(d=>sh[i][d]='N7');[7,8,12,13].forEach(d=>sh[i][d]='N7');}
+
+  // ----- Post-night rest -----
+  // Night-B works Sat+Sun nights (days 12-13), which sit right before Monday
+  // (day 0) of the NEXT cycle. So whoever was Night-B last cycle must not be
+  // handed a day/eve shift on this cycle's Monday. Mark their Monday as a rest
+  // day ('RST' — a placeholder the assigner treats as unavailable, converted
+  // back to a plain day off before display). Skip anyone who is on nights again
+  // this cycle (continuing nights is not a post-night day shift).
+  const prevNightB=pickPair(bIdxs,off-1);
+  for(const i of prevNightB)if(!nightSet.has(i)&&sh[i][0]==='OFF')sh[i][0]='RST';
 
   // ----- Weekend DAY duty: independent rotation, skips night nurses -----
   // Each weekend: a 2-RN team works Sat D7 + Sun D7, and a 3rd RN works the
@@ -960,6 +971,8 @@ function computeSchedule(off){
     if(mx<=3)break;
   }
   for(let i=0;i<N;i++)for(let d=0;d<14;d++)sh[i][d]=best[i][d];
+  // clear post-night rest markers back to plain days off (display + counts)
+  for(let i=0;i<N;i++)for(let d=0;d<14;d++)if(sh[i][d]==='RST')sh[i][d]='OFF';
 
   // 3) apply saved manual overrides keyed by absolute date
   for(let d=0;d<14;d++){

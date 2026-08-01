@@ -22,6 +22,10 @@ Whoever is the Night-A / Night-B pair works these exact days (7 nights each, N7)
 
 This is why weekend **night** coverage is fully determined: **Week-1 weekend → Night-A pair**, **Week-2 weekend → Night-B pair**.
 
+### Post-night rest rule
+
+The **Night-B pair** finishes on **Sat + Sun nights** (end of week 2), which fall right before **Monday of the next cycle**. To prevent a day/evening shift straight after a night block, whoever was **Night-B last cycle gets that Monday off** (a rest day) — unless they happen to be on nights again in the new cycle. No other night→day adjacency is possible, because night nurses work *only* nights within a cycle. This costs no coverage (daily minimums are still met on every Monday).
+
 ## 3. Group A night sub-cycle (repeats every 5 cycles)
 
 | Cycle (mod 5) | On nights — Group A |
