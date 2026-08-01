@@ -1,6 +1,6 @@
 # RN Rotating Schedule — Night Shift & Weekend Reference Guide
 
-> Auto-generated from the scheduler logic in `index.html`. Rotation is driven by the **cycle number** (each Next/Prev step = one 2-week cycle). Assignments follow a nurse's **position** (RN 1 = first row, RN 19 = last), not the editable name — renaming a nurse does not change who is on nights for a given position.
+> Auto-generated from the scheduler logic in `index.html`. Rotation is driven by the **cycle number** (each Next/Prev step = one 2-week cycle). Assignments follow a nurse's **position in the on-screen list** (top row of a group = first up for nights), not the editable name — renaming a nurse does not change who is on nights for a given position. If you **drag-reorder** the rows, the rotation follows the new list order (the next 2 rows down in each group). The RN numbers below assume the default, un-reordered list.
 
 ## 1. How the night rotation works
 

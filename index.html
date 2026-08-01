@@ -780,9 +780,15 @@ function computeSchedule(off){
   const days14=Array.from({length:14},(_,i)=>addDays(base,i));
   const sh=Array.from({length:N},()=>Array(14).fill('OFF'));
 
-  // group membership is dynamic (any roster size / split)
+  // group membership is dynamic (any roster size / split).
+  // Walk the roster in the on-screen LIST order (the `order` permutation) so the
+  // night rotation follows "the next 2 down the list" in each group even after
+  // rows have been reordered. Falls back to natural order for any missing indices.
+  const seq=[],seen=new Set();
+  for(const x of order)if(Number.isInteger(x)&&x>=0&&x<N&&!seen.has(x)){seen.add(x);seq.push(x);}
+  for(let i=0;i<N;i++)if(!seen.has(i))seq.push(i);
   const aIdxs=[],bIdxs=[];
-  for(let i=0;i<N;i++)(groups[i]==='A'?aIdxs:bIdxs).push(i);
+  for(const i of seq)(groups[i]==='A'?aIdxs:bIdxs).push(i);
   // pick this cycle's night pair from a group, rotating by 2 each cycle.
   // handles small groups gracefully (0 or 1 member -> that many nurses).
   function pickPair(idxs){
