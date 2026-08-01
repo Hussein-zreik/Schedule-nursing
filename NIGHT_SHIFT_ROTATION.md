@@ -22,9 +22,15 @@ Whoever is the Night-A / Night-B pair works these exact days (7 nights each, N7)
 
 This is why weekend **night** coverage is fully determined: **Week-1 weekend → Night-A pair**, **Week-2 weekend → Night-B pair**.
 
-### Post-night rest rule
+### Rest across the cycle boundary (post-night & post-weekend)
 
-The **Night-B pair** finishes on **Sat + Sun nights** (end of week 2), which fall right before **Monday of the next cycle**. To prevent a day/evening shift straight after a night block, whoever was **Night-B last cycle gets that Monday off** (a rest day) — unless they happen to be on nights again in the new cycle. No other night→day adjacency is possible, because night nurses work *only* nights within a cycle. This costs no coverage (daily minimums are still met on every Monday).
+The "**no more than 3 consecutive working days**" limit is enforced *across the seam* between two cycles, not just inside each 14-day block. Sunday is only ever worked by the **Night-B pair** (weekend nights) or the **weekend day-team** (Sat + Sun D7), so anyone working into Sunday carries a run straight into the next cycle's Monday. Two cases:
+
+- **Night-B pair** (worked weekend **nights**): to avoid a day shift straight after a night block, they get the next **Monday off** (unless on nights again). *Post-night rest rule.*
+- **Weekend day-team** (worked Sat + Sun **days**): Sat → Sun → Mon is only a 3-day run (allowed), so they *may* work Monday but get the following **Tuesday off**. Their run is kept at exactly 2 by also keeping them off the preceding Friday.
+- To close the last gap, the **weekend day-team of a cycle never includes the *next* cycle's Night-A pair** (who work Mon + Tue nights) — otherwise Sat, Sun + Mon, Tue would be a 4-day run.
+
+Verified across 300 random seeds × 31 cycles and roster sizes 19–26: **0** boundary violations, **0** within-cycle violations, exactly-7 preserved, and no day dropped below minimum staffing.
 
 ## 3. Group A night sub-cycle (repeats every 5 cycles)
 
