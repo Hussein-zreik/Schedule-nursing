@@ -197,6 +197,12 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .report-body td.lo{background:rgba(88,150,240,.18)}
 .fair-note{font-size:10px;color:var(--muted-2);margin-top:8px;line-height:1.5}
 .fair-note .sw{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 2px}
+.fair-range{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.fair-lbl{font-size:11px;color:var(--muted-2);display:flex;gap:5px;align-items:center;font-family:'DM Mono',monospace}
+.fair-date{background:var(--field);color:var(--text);border:1px solid var(--border-2);border-radius:6px;padding:5px 7px;font-size:11px;font-family:'DM Mono',monospace;color-scheme:light dark}
+.fair-presets{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.fair-presets .btn{padding:5px 9px;font-size:11px}
+.fair-range-info{font-size:11px;color:var(--muted-2);font-family:'DM Mono',monospace;margin-left:auto}
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem}
 .mbtn{padding:8px 6px;border:1px solid var(--border-2);border-radius:6px;background:var(--field);cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;transition:all 0.12s;text-align:center}
 .mbtn:hover{background:var(--field-2);color:var(--text-2)}
@@ -393,11 +399,17 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
   <div class="modal report-modal">
     <div class="report-head">
       <h3 style="margin:0">Fairness dashboard</h3>
-      <div class="report-nav">
-        <button class="btn icon-only" onclick="fairYear(-1)" title="Previous year" aria-label="Previous year"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <span id="fairYearLabel" class="report-month">—</span>
-        <button class="btn icon-only" onclick="fairYear(1)" title="Next year" aria-label="Next year"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <div class="fair-range">
+        <label class="fair-lbl">From <input type="date" id="fairStart" class="fair-date" onchange="fairApplyRange('start')"></label>
+        <label class="fair-lbl">To <input type="date" id="fairEnd" class="fair-date" onchange="fairApplyRange('end')"></label>
       </div>
+    </div>
+    <div class="fair-presets">
+      <button class="btn" onclick="fairPreset('month')">This month</button>
+      <button class="btn" onclick="fairPreset('year')">This year</button>
+      <button class="btn" onclick="fairPreset('n3')">Next 3 months</button>
+      <button class="btn" onclick="fairPreset('n6')">Next 6 months</button>
+      <span id="fairRangeInfo" class="fair-range-info">—</span>
     </div>
     <div id="fairSummary"></div>
     <div class="report-body" id="fairBody"></div>
@@ -1624,16 +1636,18 @@ function downloadReportPDF(){
 }
 
 /* ---------- fairness dashboard ---------- */
-let fairY=null; // calendar year being analyzed
-// Tally nights / weekend days / holidays / vacations per RN across a full calendar year.
-// Uses the pure scheduler across every cycle the year touches (same approach as the report).
-function fairnessData(year){
-  const first=new Date(year,0,1),last=new Date(year,11,31);
+let fairStart=null,fairEnd=null; // Date objects for the analyzed range (inclusive)
+const fairParse=s=>{const p=String(s).split('-');return new Date(+p[0],(+p[1]||1)-1,+p[2]||1);}; // local YYYY-MM-DD
+// Tally nights / weekend days / holidays / vacations per RN across any date range.
+// Uses the pure scheduler across every cycle the range touches (same approach as the report).
+function fairnessData(first,last){
   const anchor=getMonday(startDateStr?new Date(startDateStr):new Date());
   const cache={};
   const cyc=o=>(cache[o]||(cache[o]=computeSchedule(o)));
   const rows=names.map(()=>({nights:0,wknd:0,hol:0,vac:0,total:0}));
+  let days=0;
   for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1)){
+    days++;
     const dd=new Date(d);dd.setHours(0,0,0,0);
     const idx=Math.round((dd-anchor)/86400000);
     const o=Math.floor(idx/14),di=idx-o*14;
@@ -1648,7 +1662,7 @@ function fairnessData(year){
       else if(s==='VAC')rows[i].vac++;
     }
   }
-  return {first,last,rows};
+  return {first,last,days,rows};
 }
 // min / max / average / spread of one metric over a set of RN indices
 function fairStats(rows,idxs,key){
@@ -1660,12 +1674,40 @@ function fairStats(rows,idxs,key){
 function fairChip(ok,label,detail){
   return `<span class="fair-chip ${ok?'ok':'warn'}">${ok?'✓':'⚠'} <b>${escapeHtml(label)}</b> ${escapeHtml(detail)}</span>`;
 }
-function openFairness(){fairY=new Date().getFullYear();renderFairness();document.getElementById('fairModal').classList.add('open');}
+function openFairness(){
+  // default to the current calendar year
+  const y=new Date().getFullYear();
+  fairStart=new Date(y,0,1);fairEnd=new Date(y,11,31);
+  fairSyncInputs();renderFairness();
+  document.getElementById('fairModal').classList.add('open');
+}
 function closeFairness(){document.getElementById('fairModal').classList.remove('open');}
-function fairYear(delta){fairY+=delta;renderFairness();}
+function fairSyncInputs(){
+  document.getElementById('fairStart').value=isoKey(fairStart);
+  document.getElementById('fairEnd').value=isoKey(fairEnd);
+}
+function fairApplyRange(which){
+  const sEl=document.getElementById('fairStart'),eEl=document.getElementById('fairEnd');
+  if(!sEl.value||!eEl.value)return;
+  let a=fairParse(sEl.value),b=fairParse(eEl.value);
+  if(a>b){ // keep the range valid by pulling the OTHER date to the one just changed
+    if(which==='start'){b=new Date(a);eEl.value=isoKey(b);}
+    else{a=new Date(b);sEl.value=isoKey(a);}
+  }
+  fairStart=a;fairEnd=b;renderFairness();
+}
+function fairPreset(kind){
+  const now=new Date();now.setHours(0,0,0,0);
+  const y=now.getFullYear(),m=now.getMonth();
+  if(kind==='month'){fairStart=new Date(y,m,1);fairEnd=new Date(y,m+1,0);}
+  else if(kind==='year'){fairStart=new Date(y,0,1);fairEnd=new Date(y,11,31);}
+  else if(kind==='n3'){fairStart=new Date(now);fairEnd=new Date(y,m+3,now.getDate());}
+  else if(kind==='n6'){fairStart=new Date(now);fairEnd=new Date(y,m+6,now.getDate());}
+  fairSyncInputs();renderFairness();
+}
 function renderFairness(){
-  document.getElementById('fairYearLabel').textContent=String(fairY);
-  const{rows}=fairnessData(fairY);
+  const{rows,days}=fairnessData(fairStart,fairEnd);
+  document.getElementById('fairRangeInfo').textContent=`${fmt(fairStart)} ${fairStart.getFullYear()} – ${fmt(fairEnd)} ${fairEnd.getFullYear()}  ·  ${days} day${days===1?'':'s'}`;
   normalizeOrder();
   const aIdx=[],bIdx=[],all=[];
   for(let i=0;i<N;i++){all.push(i);(groups[i]==='A'?aIdx:bIdx).push(i);}
@@ -1697,11 +1739,12 @@ function renderFairness(){
 function downloadFairnessPDF(){
   const J=window.jspdf&&window.jspdf.jsPDF;
   if(!J){toast('PDF library offline — cannot export dashboard');return;}
-  const{rows}=fairnessData(fairY);
+  const{rows,days}=fairnessData(fairStart,fairEnd);
+  const label=`${isoKey(fairStart)} to ${isoKey(fairEnd)} (${days} days)`;
   try{
     const doc=new J({orientation:'landscape',unit:'pt',format:'a4'});
     doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(20,25,35);
-    doc.text(`RN Fairness Dashboard  ·  ${fairY}`,24,26);
+    doc.text(`RN Fairness Dashboard  ·  ${label}`,24,26);
     const head=[['RN','Grp','Nights','Weekend days','Holidays','Vacation','Total shifts']];
     const body=[];const tot={nights:0,wknd:0,hol:0,vac:0,total:0};
     normalizeOrder();
@@ -1715,7 +1758,7 @@ function downloadFairnessPDF(){
       headStyles:{fillColor:[238,240,244],textColor:[70,80,95],fontStyle:'bold'},
       footStyles:{fillColor:[233,236,240],textColor:[20,25,35],fontStyle:'bold'},
       columnStyles:{0:{halign:'left',cellWidth:110,fontStyle:'bold'},6:{fontStyle:'bold',fillColor:[240,242,246]}}});
-    doc.save(`RN_fairness_${fairY}.pdf`);
+    doc.save(`RN_fairness_${isoKey(fairStart)}_to_${isoKey(fairEnd)}.pdf`);
     toast('Fairness dashboard PDF downloaded');
   }catch(err){console.error('Fairness PDF failed',err);toast('Fairness PDF failed');}
 }
