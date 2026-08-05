@@ -921,19 +921,49 @@ function computeSchedule(off,applyBoundary=true){
     const s=(((o*2)%idxs.length)+idxs.length)%idxs.length;
     return [idxs[s],idxs[(s+1)%idxs.length]];
   }
-  // A nurse with a request that cycle steps out of the fixed night block, so the
-  // pair is drawn from the lock-free members (identical to before when there are
-  // no requests). The next cycle's Night-A is computed the same way for the
-  // weekend-seam rule below.
-  const aFree=aIdxs.filter(i=>!hasLock(i)),bFree=bIdxs.filter(i=>!hasLock(i));
-  const nextDates=Array.from({length:14},(_,i)=>isoKey(addDays(base,14+i)));
-  const nextLocked=i=>nextDates.some(k=>overrides[k]&&overrides[k][i]!==undefined);
-  const aFreeNext=aIdxs.filter(i=>!nextLocked(i));
-  const nightA=pickPair(aFree),nightB=pickPair(bFree);
+  // The night TURN is fixed by the rotation and never changes, even if a night
+  // nurse has a request. Requests are honored by reassigning WHICH nights each
+  // night nurse covers (via swaps among the night nurses), so every night still
+  // has exactly 2. With no requests this is the plain fixed pattern.
+  const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
   const nightSet=new Set([...nightA,...nightB]);
-
-  for(const i of nightA){[0,1,5,6].forEach(d=>sh[i][d]='N7');[9,10,11].forEach(d=>sh[i][d]='N7');}
-  for(const i of nightB){[2,3,4].forEach(d=>sh[i][d]='N7');[7,8,12,13].forEach(d=>sh[i][d]='N7');}
+  const nextNightA_ids=pickPair(aIdxs,off+1); // next cycle's Night-A (turn) for the weekend seam
+  const NA_DAYS=[0,1,5,6,9,10,11],NB_DAYS=[2,3,4,7,8,12,13];
+  function assignNights(){
+    const nn=[...nightA,...nightB],asn={};
+    nightA.forEach(i=>asn[i]=new Set(NA_DAYS));nightB.forEach(i=>asn[i]=new Set(NB_DAYS));
+    if(!nn.length)return asn;
+    const F={},target={};
+    for(const i of nn){F[i]=new Set();let e=0;
+      for(let d=0;d<14;d++)if(locks[i][d]!==null){F[i].add(d);if(ENTRY_TYPES.has(locks[i][d]))e++;}
+      target[i]=Math.max(0,7-e);}                 // requested working entries reduce nights; offs keep 7
+    if(nn.every(i=>!F[i].size))return asn;         // no night-nurse requests -> default (regression-safe)
+    const dayCount=d=>{let c=0;for(const i of nn)if(asn[i].has(d))c++;return c;};
+    for(const i of nn)for(const d of [...asn[i]])if(F[i].has(d))asn[i].delete(d);      // drop requested nights
+    for(const i of nn)while(asn[i].size>target[i]){const a=[...asn[i]];asn[i].delete(a[a.length-1]);}
+    // R gives up a night, another night nurse P covers it, and R picks up one of
+    // P's nights in return -> everyone keeps their count and every night keeps 2.
+    function trySwap(d){
+      for(const P of nn){ if(F[P].has(d)||asn[P].has(d))continue;
+        for(const d2 of [...asn[P]]){ if(d2===d)continue;
+          for(const R of nn){ if(R===P||asn[R].size>=target[R]||F[R].has(d2)||asn[R].has(d2))continue;
+            asn[P].delete(d2);asn[P].add(d);asn[R].add(d2);return true; } } }
+      return false;
+    }
+    let guard=0;
+    while(guard++<400){
+      let short=-1;for(let d=0;d<14;d++)if(dayCount(d)<2){short=d;break;}
+      if(short<0)break;
+      let cand=null;
+      for(const i of nn){if(asn[i].size>=target[i]||F[i].has(short)||asn[i].has(short))continue;cand=i;break;}
+      if(cand!=null){asn[cand].add(short);continue;}
+      if(trySwap(short))continue;
+      break;    // this night can't reach 2 (too many requests) -> flagged in the banner
+    }
+    return asn;
+  }
+  const nightAsn=assignNights();
+  for(const i of [...nightA,...nightB])for(const d of nightAsn[i])if(locks[i][d]===null)sh[i][d]='N7';
 
   // ----- Rest across the cycle boundary (post-night / post-weekend) -----
   // The "<=3 consecutive days" limit is enforced within each 14-day cycle, but
@@ -972,7 +1002,7 @@ function computeSchedule(off,applyBoundary=true){
   // this cycle, or already carries a weekend request. For the closing weekend
   // (w=1) we also skip the NEXT cycle's Night-A pair (they work Mon+Tue nights
   // right after, which with Sat+Sun would make a 4-day run across the seam).
-  const nextNightA=new Set(pickPair(aFreeNext,off+1));
+  const nextNightA=new Set(nextNightA_ids);
   function placeWeekendDuty(){
     const used=new Set();
     const cnt=(d,t)=>{let c=0;for(let i=0;i<N;i++)if(sh[i][d]===t)c++;return c;};
