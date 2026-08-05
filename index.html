@@ -328,8 +328,17 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
     <button class="btn icon-only" onclick="goToday()" aria-label="Jump to current cycle" title="Jump to the current cycle (today)">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 12l0-5M12 12l3.5 2"/></svg>
     </button>
-    <button class="btn accent" onclick="regen()" title="Generate a new random schedule">
+    <button class="btn" id="modeBtn" onclick="toggleMode()" title="Switch between Auto (always filled) and Manual (start empty, generate on demand)">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span id="modeLbl">Auto mode</span>
+    </button>
+    <button class="btn accent" id="regenBtn" onclick="regen()" title="Generate a new random schedule">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"/></svg>Regenerate
+    </button>
+    <button class="btn accent" id="genBtn" onclick="generateFortnight()" style="display:none" title="Fill this empty fortnight, respecting the rules, turns and requests">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><span id="genLbl">Generate</span>
+    </button>
+    <button class="btn" id="clearFnBtn" onclick="clearFortnight()" style="display:none" title="Clear this fortnight back to empty">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Clear
     </button>
     <span class="divider"></span>
     <button class="btn" onclick="undo()" title="Undo last change (Ctrl+Z)">
@@ -578,6 +587,9 @@ let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
 let theme='dark';
 let overrides={}; // { 'YYYY-MM-DD': { rnIndex: shift } }
+let manualMode=false;      // when true, fortnights start empty and are filled on Generate
+let committedCycles={};    // { 'YYYY-MM-DD'(cycle Monday): true } — which fortnights have been generated
+let cycleSeeds={};         // { 'YYYY-MM-DD'(cycle Monday): seed } — per-fortnight seed so generating one doesn't reshuffle others
 let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
 let mRn=null,mDay=null,mSel=null,mEditIdx=null;
 const HIST_MAX=100;
@@ -588,7 +600,7 @@ function saveState(){
     localStorage.setItem(STORE_KEY,JSON.stringify({
       names,groups,holBal,vacBal,order,seed,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,overrides,history
+      theme,overrides,history,manualMode,committedCycles,cycleSeeds
     }));
   }catch(e){/* storage unavailable */}
   if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
@@ -612,13 +624,16 @@ function applyStateObject(s){
   if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
   if(Array.isArray(s.history))history=s.history;
   if(Array.isArray(s.order))order=s.order.slice();
+  if(typeof s.manualMode==='boolean')manualMode=s.manualMode;
+  if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
+  if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
   syncN();normalizeOrder();
 }
 // shared data pushed to the cloud (theme stays local)
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,seed,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,history};
+    overrides,history,manualMode,committedCycles,cycleSeeds};
 }
 function loadState(){
   try{
@@ -903,6 +918,14 @@ function computeSchedule(off,applyBoundary=true){
   }
   const hasLock=i=>{for(let d=0;d<14;d++)if(locks[i][d]!==null)return true;return false;};
 
+  // Manual mode: an un-generated fortnight stays EMPTY except for the entered
+  // requests (which are already placed above). It fills only when Generate marks
+  // it committed. Per-fortnight seed so generating one fortnight never reshuffles
+  // another. In Auto mode this is skipped entirely (identical to before).
+  const gk=isoKey(base);
+  if(manualMode&&!committedCycles[gk])return {days:days14,sh,weekStart:base};
+  const eSeed=(manualMode&&cycleSeeds[gk]!==undefined)?cycleSeeds[gk]:seed;
+
   // group membership is dynamic (any roster size / split).
   // Walk the roster in the on-screen LIST order (the `order` permutation) so the
   // night rotation follows "the next 2 down the list" in each group even after
@@ -1129,7 +1152,7 @@ function computeSchedule(off,applyBoundary=true){
   let best=null,bestMax=99;
   for(let att=0;att<30;att++){
     const work=baseSnap.map(r=>r.slice());
-    const arng=mkRng((seed^(off*0x9e3779)^(att*0x85ebca6b))>>>0);
+    const arng=mkRng((eSeed^(off*0x9e3779)^(att*0x85ebca6b))>>>0);
     assignWeek(0,work,arng);assignWeek(1,work,arng);
     repairRuns(work,nightSet,locks);swapRepair(work,nightSet,locks);repairRuns(work,nightSet,locks);
     let mx=0;for(let i=0;i<N;i++){const r=maxRunLen(work[i]);if(r>mx)mx=r;}
@@ -1220,6 +1243,14 @@ function renderTable(){
 // Display only — it never changes the schedule.
 function renderBanner(){
   const{days,sh}=sched;
+  const el=document.getElementById('banner');
+  // Manual mode, empty (ungenerated) fortnight: friendly prompt, no false warnings
+  if(manualMode&&!committedCycles[cycleStartISO(cycleOffset)]){
+    const reqCount=(()=>{let c=0;for(let d=0;d<14;d++){const o=overrides[isoKey(days[d])];if(o)c+=Object.keys(o).length;}return c;})();
+    el.className='banner';
+    el.innerHTML=`<span class="bic">▦</span><div>This fortnight is <b>empty</b>. Add staff requests in <b>Requests</b>${reqCount?` (<b>${reqCount}</b> entered)`:''}, then press <b>Generate</b> to fill it while respecting the rules, turns and requests.</div>`;
+    return;
+  }
   // 1) days below minimum staffing (any shift type under DAILY_MIN)
   const short=[];
   for(let d=0;d<14;d++)if(dayShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
@@ -1230,7 +1261,6 @@ function renderBanner(){
   let longRuns=0;
   for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
 
-  const el=document.getElementById('banner');
   if(!short.length&&!notSeven&&!longRuns){
     el.className='banner ok';
     el.innerHTML='<span class="bic">✓</span><span>All staffing rules satisfied.</span>';
@@ -1447,11 +1477,46 @@ function reqClearAll(){
   render();saveState();renderRequests();toast('All requests cleared');
 }
 
-function render(){buildSchedule();renderTable();}
+function render(){buildSchedule();renderTable();updateModeUI();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
 function regen(){const b=snapshot();pushHistory('Regenerated schedule',b);seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;render();saveState();toast('New schedule generated — requests kept');}
+
+/* ---------- Auto / Manual mode ---------- */
+// ISO date of a cycle's start Monday — the key for committed fortnights / seeds
+function cycleStartISO(off){const si=document.getElementById('startDate').value;return isoKey(addDays(getMonday(si?new Date(si):new Date()),off*14));}
+function toggleMode(){
+  manualMode=!manualMode;
+  render();saveState();
+  toast(manualMode?'Manual mode — fortnights start empty; add requests, then Generate'
+                  :'Auto mode — the schedule fills automatically');
+}
+function generateFortnight(){
+  const gk=cycleStartISO(cycleOffset),before=snapshot();
+  cycleSeeds[gk]=(Date.now()^Math.floor(Math.random()*1e9))>>>0;  // fresh seed for THIS fortnight only
+  committedCycles[gk]=true;
+  pushHistory('Generated fortnight',before);
+  render();saveState();
+  toast('Fortnight generated');
+}
+function clearFortnight(){
+  const gk=cycleStartISO(cycleOffset),before=snapshot();
+  delete committedCycles[gk];delete cycleSeeds[gk];
+  pushHistory('Cleared fortnight',before);
+  render();saveState();
+  toast('Fortnight cleared — add requests, then Generate');
+}
+function updateModeUI(){
+  const on=manualMode,committed=on&&!!committedCycles[cycleStartISO(cycleOffset)];
+  const set=(id,txt)=>{const e=document.getElementById(id);if(e&&txt!=null)e.textContent=txt;};
+  const show=(id,v)=>{const e=document.getElementById(id);if(e)e.style.display=v?'':'none';};
+  set('modeLbl',on?'Manual mode':'Auto mode');
+  show('regenBtn',!on);                // Auto: normal Regenerate
+  show('genBtn',on);                   // Manual: Generate (or Regenerate this fortnight)
+  show('clearFnBtn',on&&committed);    // Manual + generated: Clear back to empty
+  set('genLbl',committed?'Regenerate':'Generate');
+}
 // changing the date re-anchors cycle 0 to that Monday, then jumps to today's cycle
 document.getElementById('startDate').addEventListener('change',function(){
   startDateStr=this.value;cycleOffset=autoOffset(this.value);render();saveState();
