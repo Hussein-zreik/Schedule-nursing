@@ -699,6 +699,9 @@ function cloudSave(){ // called from saveState; debounced push
   pushTimer=setTimeout(pushCloud,600);
 }
 function pushCloud(){
+  pushTimer=null; // clear the pending-push flag; if left set, the snapshot guard
+                  // below (`!pushTimer`) stayed false forever and this device
+                  // stopped accepting ANY remote update after its first edit.
   if(!unitCode||!cloudDb)return;
   cloudDb.collection('schedules').doc(unitCode).set({state:cloudStateObj(),updatedAt:Date.now()})
     .then(()=>{cloudStatus='synced';updateCloudUI();})
@@ -774,7 +777,7 @@ function undo(){
   if(!history.length){toast('Nothing to undo');return;}
   const e=history.pop();
   restore(e.snap);
-  render();
+  render();saveState();
   toast('Undid: '+e.label);
 }
 function clearHistory(){history=[];saveState();renderHistory();toast('History cleared');}
@@ -1238,7 +1241,10 @@ function renderTable(){
 
   renderTracker();
   renderBanner();
-  saveState();
+  // NOTE: no saveState() here. Rendering is not a data change, and saving on
+  // every render made each connected device push its whole state to the cloud
+  // just for viewing/navigating — letting a device sitting on a stale copy
+  // overwrite an edit made elsewhere. Every mutating action saves explicitly.
 }
 
 // live health-check banner: watches the current schedule (including manual
