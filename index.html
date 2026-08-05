@@ -513,9 +513,12 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
   <div class="modal">
     <h3 id="mTitle">Edit shift</h3>
     <div class="mgrid" id="mOpts"></div>
-    <div class="mactions">
-      <button class="btn" onclick="closeCell()">Cancel</button>
-      <button class="btn accent" onclick="saveCell()">Save</button>
+    <div class="mactions" style="justify-content:space-between">
+      <button class="btn" id="resetCellBtn" onclick="resetCell()" title="Remove this entry and let the schedule auto-fill this cell">Reset to auto</button>
+      <span style="display:flex;gap:8px">
+        <button class="btn" onclick="closeCell()">Cancel</button>
+        <button class="btn accent" onclick="saveCell()">Save</button>
+      </span>
     </div>
   </div>
 </div>
@@ -1527,6 +1530,9 @@ function openCellM(ri,di){
   mRn=ri;mDay=di;mSel=sched.sh[ri][di];
   document.getElementById('mTitle').textContent=`${names[ri]} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
   document.getElementById('mOpts').innerHTML=ALL_TYPES.map(s=>`<button class="mbtn${mSel===s?' sel':''}" data-s="${s}" onclick="pickSh('${s}')">${LABELS_M[s]}</button>`).join('');
+  const k=isoKey(sched.days[di]);
+  const hasEntry=overrides[k]&&overrides[k][ri]!==undefined;
+  document.getElementById('resetCellBtn').style.display=hasEntry?'':'none';
   document.getElementById('cellModal').classList.add('open');
 }
 function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
@@ -1538,11 +1544,24 @@ function saveCell(){
       const dk=`${DAYS[mDay%7]} ${fmt(sched.days[mDay])}`;
       pushHistory(`${names[mRn]} · ${dk}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`,b);
       const k=isoKey(sched.days[mDay]);
-      if(mSel==='OFF'){ if(overrides[k])delete overrides[k][mRn]; }  // "Off" clears any request
-      else{ if(!overrides[k])overrides[k]={}; overrides[k][mRn]=mSel; }
+      // every choice (including Off) becomes a locked entry the schedule keeps.
+      // Use "Reset to auto" to remove it and let the generator fill this cell again.
+      if(!overrides[k])overrides[k]={}; overrides[k][mRn]=mSel;
     }
   }
   closeCell();render();saveState();   // rebuild so the rest of the schedule adapts around the locked cell
+}
+function resetCell(){ // remove a manual entry / request for this cell -> back to auto-fill
+  if(mRn!==null&&mDay!==null){
+    const k=isoKey(sched.days[mDay]);
+    if(overrides[k]&&overrides[k][mRn]!==undefined){
+      const b=snapshot();
+      pushHistory(`${names[mRn]} · ${DAYS[mDay%7]} ${fmt(sched.days[mDay])}: reset to auto`,b);
+      delete overrides[k][mRn];
+      if(!Object.keys(overrides[k]).length)delete overrides[k];
+    }
+  }
+  closeCell();render();saveState();
 }
 function closeCell(){document.getElementById('cellModal').classList.remove('open');}
 
