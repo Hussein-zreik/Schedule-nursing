@@ -1366,7 +1366,7 @@ function autoOffset(anchorISO,today){
 /* ---------- requests (locked duties / offs / vacations) ---------- */
 let reqOffset=0;                 // which fortnight the modal is showing
 let reqSelDays=new Set();        // day-indexes (0-13) selected for the new request
-const REQ_TYPES=['D6','D7','S8','S9','S10','N7','REQ','VAC','HOL'];
+const REQ_TYPES=['D6','D7','S8','S9','S10','N7','REQ','OFF','VAC','HOL'];
 function reqDates(){
   const si=document.getElementById('startDate').value;
   const base=addDays(getMonday(si?new Date(si):new Date()),reqOffset*14);
