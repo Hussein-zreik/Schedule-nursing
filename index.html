@@ -963,40 +963,45 @@ function computeSchedule(off,applyBoundary=true){
   }
 
   // ----- Weekend DAY duty: independent rotation, skips night nurses -----
-  // Each weekend: a 2-RN team works Sat D7 + Sun D7, and a 3rd RN works the
-  // Saturday-only S10 extra. Gives exactly Sat = 2*D7 + 1*S10 (3) and
-  // Sun = 2*D7 (2). The turn order is its own sequence (advances 3 per
-  // weekend), independent of the night rotation; it only skips whoever is on
-  // nights so no one is double-booked. Both weekends of a cycle use distinct RNs.
-  // For the closing weekend (w=1, days 12-13) we also skip the NEXT cycle's
-  // Night-A pair: they work Mon+Tue nights right after, so letting them work
-  // this Sat+Sun would make a 4-day run (Sat,Sun + Mon,Tue) across the seam.
+  // Target per weekend: Sat = 2*D7 + 1*S10, Sun = 2*D7. Normally a 2-RN team
+  // works Sat+Sun D7 and a 3rd works the Sat-only S10. But a REQUESTED weekend
+  // worker (locked D7/S10 on Sat or Sun) already counts toward the target, so
+  // the auto team only fills the REMAINDER -- otherwise the weekend would be
+  // over-staffed and the displaced nurses wouldn't move to weekdays. The turn
+  // order advances 3 per weekend and skips whoever is on nights, already used
+  // this cycle, or already carries a weekend request. For the closing weekend
+  // (w=1) we also skip the NEXT cycle's Night-A pair (they work Mon+Tue nights
+  // right after, which with Sat+Sun would make a 4-day run across the seam).
   const nextNightA=new Set(pickPair(aFreeNext,off+1));
   function placeWeekendDuty(){
     const used=new Set();
+    const cnt=(d,t)=>{let c=0;for(let i=0;i<N;i++)if(sh[i][d]===t)c++;return c;};
     for(let w=0;w<2;w++){
       const satD=w*7+5,sunD=w*7+6;
-      const g=off*2+w;                         // global weekend index
-      const start=(((g*3)%N)+N)%N;             // independent pointer (floor-mod)
-      const chosen=[];
-      for(let k=0;k<N&&chosen.length<3;k++){
-        const i=(start+k)%N;
-        if(nightSet.has(i)||used.has(i))continue;      // skip night pair & cycle repeats
-        if(w===1&&nextNightA.has(i))continue;          // closing weekend: skip next cycle's Night-A
-        if(sh[i][satD]!=='OFF'||sh[i][sunD]!=='OFF')continue;
-        if(locks[i][satD]!==null||locks[i][sunD]!==null)continue; // don't override a weekend request
-        chosen.push(i);
+      const start=(((off*2+w)*3)%N+N)%N;       // independent pointer (floor-mod)
+      // eligible pool, in pointer order
+      const pool=[];
+      for(let k=0;k<N;k++){const i=(start+k)%N;
+        if(nightSet.has(i)||used.has(i))continue;
+        if(w===1&&nextNightA.has(i))continue;
+        if(sh[i][satD]!=='OFF'||sh[i][sunD]!=='OFF')continue;   // free both weekend days
+        if(locks[i][satD]!==null||locks[i][sunD]!==null)continue; // already carries a weekend request
+        pool.push(i);
       }
-      if(chosen.length<3)continue;             // safety (pool too small)
-      chosen.forEach(i=>used.add(i));
-      const[t1,t2,ex]=chosen;
-      sh[t1][satD]='D7';sh[t1][sunD]='D7';     // weekend team member 1
-      sh[t2][satD]='D7';sh[t2][sunD]='D7';     // weekend team member 2
-      sh[ex][satD]='S10';                       // Saturday-only extra duty
-      // Closing weekend (days 12-13): keep the Sat+Sun team off the preceding
-      // Friday (day 11) so their trailing run is exactly 2 (Sat,Sun) -- that lets
-      // the cross-boundary rule safely allow them Monday and just rest Tuesday.
-      if(w===1){if(locks[t1][11]===null)sh[t1][11]='RST';if(locks[t2][11]===null)sh[t2][11]='RST';}
+      let pi=0;const take=()=>pi<pool.length?pool[pi++]:null;
+      // remaining need after requested (locked) weekend workers already in place
+      let rSatD7=Math.max(0,2-cnt(satD,'D7')),rSun=Math.max(0,2-cnt(sunD,'D7')),rS10=Math.max(0,1-cnt(satD,'S10'));
+      const both=Math.min(rSatD7,rSun);                       // work Sat+Sun D7
+      for(let n=0;n<both;n++){const i=take();if(i==null)break;sh[i][satD]='D7';sh[i][sunD]='D7';used.add(i);rSatD7--;rSun--;}
+      while(rSatD7>0){const i=take();if(i==null)break;sh[i][satD]='D7';used.add(i);rSatD7--;}   // leftover Sat-only D7
+      while(rSun>0){const i=take();if(i==null)break;sh[i][sunD]='D7';used.add(i);rSun--;}        // leftover Sun-only D7
+      while(rS10>0){const i=take();if(i==null)break;sh[i][satD]='S10';used.add(i);rS10--;}       // Sat-only S10 extra
+      // Closing weekend: anyone working BOTH Sat(12)+Sun(13) as day duty stays off
+      // the preceding Friday (day 11) so their trailing run is exactly 2 -- this
+      // covers auto team members and requested weekend workers alike.
+      if(w===1)for(let i=0;i<N;i++){
+        if(!nightSet.has(i)&&WORK_TYPES.has(sh[i][12])&&WORK_TYPES.has(sh[i][13])&&sh[i][11]==='OFF'&&locks[i][11]===null)sh[i][11]='RST';
+      }
     }
   }
   placeWeekendDuty();
