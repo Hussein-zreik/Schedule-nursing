@@ -922,7 +922,6 @@ function computeSchedule(off,applyBoundary=true){
     const o=overrides[isoKey(days14[d])];
     if(o)for(const ri in o){const idx=+ri;if(idx>=0&&idx<N){locks[idx][d]=o[ri];sh[idx][d]=o[ri];}}
   }
-  const hasLock=i=>{for(let d=0;d<14;d++)if(locks[i][d]!==null)return true;return false;};
 
   // Manual mode: an un-generated fortnight stays EMPTY except for the entered
   // requests (which are already placed above). It fills only when Generate marks
@@ -950,49 +949,20 @@ function computeSchedule(off,applyBoundary=true){
     const s=(((o*2)%idxs.length)+idxs.length)%idxs.length;
     return [idxs[s],idxs[(s+1)%idxs.length]];
   }
-  // The night TURN is fixed by the rotation and never changes, even if a night
-  // nurse has a request. Requests are honored by reassigning WHICH nights each
-  // night nurse covers (via swaps among the night nurses), so every night still
-  // has exactly 2. With no requests this is the plain fixed pattern.
+  // ----- NIGHTS ARE MANUAL -----
+  // The night TURN is fixed by the rotation and never changes. Each turn's pair
+  // gets the fixed night pattern, and that is all the app decides: nights are
+  // never auto-redistributed. If you put a night nurse off (or enter anything on
+  // a night cell), that entry simply stands -- no other night nurse is moved to
+  // cover it and the off nurse is not given a replacement night. You fill any
+  // gap by hand; the banner reports nights that aren't covered by 2 RNs.
+  // (Day shifts still adapt automatically — see assignWeek below.)
   const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
   const nightSet=new Set([...nightA,...nightB]);
   const nextNightA_ids=pickPair(aIdxs,off+1); // next cycle's Night-A (turn) for the weekend seam
   const NA_DAYS=[0,1,5,6,9,10,11],NB_DAYS=[2,3,4,7,8,12,13];
-  function assignNights(){
-    const nn=[...nightA,...nightB],asn={};
-    nightA.forEach(i=>asn[i]=new Set(NA_DAYS));nightB.forEach(i=>asn[i]=new Set(NB_DAYS));
-    if(!nn.length)return asn;
-    const F={},target={};
-    for(const i of nn){F[i]=new Set();let e=0;
-      for(let d=0;d<14;d++)if(locks[i][d]!==null){F[i].add(d);if(ENTRY_TYPES.has(locks[i][d]))e++;}
-      target[i]=Math.max(0,7-e);}                 // requested working entries reduce nights; offs keep 7
-    if(nn.every(i=>!F[i].size))return asn;         // no night-nurse requests -> default (regression-safe)
-    const dayCount=d=>{let c=0;for(const i of nn)if(asn[i].has(d))c++;return c;};
-    for(const i of nn)for(const d of [...asn[i]])if(F[i].has(d))asn[i].delete(d);      // drop requested nights
-    for(const i of nn)while(asn[i].size>target[i]){const a=[...asn[i]];asn[i].delete(a[a.length-1]);}
-    // R gives up a night, another night nurse P covers it, and R picks up one of
-    // P's nights in return -> everyone keeps their count and every night keeps 2.
-    function trySwap(d){
-      for(const P of nn){ if(F[P].has(d)||asn[P].has(d))continue;
-        for(const d2 of [...asn[P]]){ if(d2===d)continue;
-          for(const R of nn){ if(R===P||asn[R].size>=target[R]||F[R].has(d2)||asn[R].has(d2))continue;
-            asn[P].delete(d2);asn[P].add(d);asn[R].add(d2);return true; } } }
-      return false;
-    }
-    let guard=0;
-    while(guard++<400){
-      let short=-1;for(let d=0;d<14;d++)if(dayCount(d)<2){short=d;break;}
-      if(short<0)break;
-      let cand=null;
-      for(const i of nn){if(asn[i].size>=target[i]||F[i].has(short)||asn[i].has(short))continue;cand=i;break;}
-      if(cand!=null){asn[cand].add(short);continue;}
-      if(trySwap(short))continue;
-      break;    // this night can't reach 2 (too many requests) -> flagged in the banner
-    }
-    return asn;
-  }
-  const nightAsn=assignNights();
-  for(const i of [...nightA,...nightB])for(const d of nightAsn[i])if(locks[i][d]===null)sh[i][d]='N7';
+  for(const i of nightA)for(const d of NA_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
+  for(const i of nightB)for(const d of NB_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
 
   // ----- Rest across the cycle boundary (post-night / post-weekend) -----
   // The "<=3 consecutive days" limit is enforced within each 14-day cycle, but
@@ -1269,19 +1239,25 @@ function renderBanner(){
   // 3) nurses working more than 3 days in a row
   let longRuns=0;
   for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
+  // 4) nights not covered by 2 RNs (nights are manual — you fill these yourself)
+  const nightGaps=[];
+  for(let d=0;d<14;d++){let c=0;for(let i=0;i<N;i++)if(sh[i][d]==='N7')c++;
+    if(c!==2)nightGaps.push(`${DAYS[d%7]} ${fmt(days[d])} (${c})`);}
 
-  if(!short.length&&!notSeven&&!longRuns){
+  if(!short.length&&!notSeven&&!longRuns&&!nightGaps.length){
     el.className='banner ok';
     el.innerHTML='<span class="bic">✓</span><span>All staffing rules satisfied.</span>';
     return;
   }
   const parts=[];
+  if(nightGaps.length)parts.push(`<b>${nightGaps.length}</b> night${nightGaps.length>1?'s':''} not covered by 2 RNs (${nightGaps.join(', ')})`);
   if(short.length)parts.push(`<b>${short.length}</b> day${short.length>1?'s':''} below minimum staffing (${short.join(', ')})`);
   if(notSeven)parts.push(`<b>${notSeven}</b> nurse${notSeven>1?'s':''} not at 7 shifts`);
   if(longRuns)parts.push(`<b>${longRuns}</b> nurse${longRuns>1?'s':''} working 4+ days in a row`);
-  const level=(short.length||notSeven)?'bad':'warn';
+  const level=(short.length||notSeven||nightGaps.length)?'bad':'warn';
   let hint='';
-  if(short.length)hint='<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
+  if(nightGaps.length)hint='<div class="bhint">Nights are manual: assign a replacement yourself by clicking the night cell.</div>';
+  else if(short.length)hint='<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
   el.className='banner '+level;
   el.innerHTML=`<span class="bic">⚠</span><div>${parts.join(' &nbsp;·&nbsp; ')}${hint}</div>`;
 }
