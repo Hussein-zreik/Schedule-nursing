@@ -1140,14 +1140,19 @@ function computeSchedule(off,applyBoundary=true){
     // a slot is available only if empty AND not carrying a request (locked)
     const freeSlot=(i,gd)=>sh[i][gd]==='OFF'&&locks[i][gd]===null;
 
-    // eligible with streak guard
-    function eligible(i,gd,guardStreak){
+    // eligible with streak guard; `overQuota` relaxes the per-nurse shift cap
+    function eligible(i,gd,guardStreak,overQuota){
       if(nightSet.has(i))return false;
       if(!freeSlot(i,gd))return false;
-      if(assigned[i]>=quota[i])return false;
+      if(!overQuota&&assigned[i]>=quota[i])return false;
       if(guardStreak&&streak(sh,i,gd)>=3)return false;
       return true;
     }
+    // requests can consume nurses' quotas and leave a mandatory slot with nobody
+    // "available" even though staff are free. Minimum staffing outranks the
+    // per-nurse 7-count, so in that case allow one nurse over quota. Only with
+    // requests present — request-free rosters keep the original behaviour.
+    const anyLocks=locks.some(r=>r.some(x=>x!==null));
     function place(i,gd,type){sh[i][gd]=type;assigned[i]++;}
 
     // 1) satisfy WEEKDAY minimums (Mon-Fri); weekend day coverage is already
@@ -1157,12 +1162,32 @@ function computeSchedule(off,applyBoundary=true){
       const need=DAILY_MIN[d];
       for(const[type,cnt]of Object.entries(need))for(let c=0;c<cnt;c++)mandatory.push({gd:base7+d,type});
     }
+    const idxAll=Array.from({length:N},(_,i)=>i);
     for(const slot of shuffleArr(mandatory,rng)){
-      let pool=shuffleArr(Array.from({length:N},(_,i)=>i).filter(i=>eligible(i,slot.gd,true)),rng);
-      if(!pool.length)pool=shuffleArr(Array.from({length:N},(_,i)=>i).filter(i=>eligible(i,slot.gd,false)),rng);
-      if(!pool.length)continue; // roster cannot cover this slot
+      let pool=shuffleArr(idxAll.filter(i=>eligible(i,slot.gd,true)),rng);
+      if(!pool.length)pool=shuffleArr(idxAll.filter(i=>eligible(i,slot.gd,false)),rng);
+      if(!pool.length)continue; // handled by the top-up pass below
       pool.sort((a,b)=>(quota[b]-assigned[b])-(quota[a]-assigned[a]));
       place(pool[0],slot.gd,slot.type);
+    }
+    // 1b) top-up: requests can consume every nurse's quota and leave a weekday
+    // genuinely below minimum staffing. Only for those days, allow a nurse one
+    // shift over quota — being short-staffed is the worse outcome. Runs only
+    // when requests exist, so request-free rosters are unchanged.
+    if(anyLocks){
+      for(let d=0;d<5;d++){
+        const gd=base7+d;
+        for(const[type,c]of Object.entries(DAILY_MIN[d])){
+          let guard=0;
+          while(dtc(sh,gd,type)<c&&guard++<N){
+            let p=shuffleArr(idxAll.filter(i=>eligible(i,gd,true,true)),rng);
+            if(!p.length)p=shuffleArr(idxAll.filter(i=>eligible(i,gd,false,true)),rng);
+            if(!p.length)break;                       // roster genuinely cannot cover it
+            p.sort((a,b)=>(quota[b]-assigned[b])-(quota[a]-assigned[a]));
+            place(p[0],gd,type);
+          }
+        }
+      }
     }
 
     // 2) fill every remaining quota shift so each nurse reaches exactly `quota`.
@@ -1182,6 +1207,21 @@ function computeSchedule(off,applyBoundary=true){
       if(subset){
         for(const gd of subset){sh[i][gd]=shuffleArr(DAY_TYPES,rng)[0];assigned[i]++;}
         continue;
+      }
+      // A REQUEST can make the full quota impossible without exceeding 3
+      // consecutive days (e.g. Monday requested off leaves exactly Tue-Fri for a
+      // 4-shift week). The <=3 safety rule wins over the 7-count: place as many
+      // as can be placed safely, so the nurse simply works fewer shifts that
+      // cycle. Only applies to nurses who actually have a request -- rosters
+      // without requests keep the original behaviour exactly.
+      if(locks[i].some(x=>x!==null)){
+        let done=false;
+        for(let k=rem-1;k>=1&&!done;k--){
+          const sub=pickWeekdaySubset(sh[i],freeWk,k,rng);
+          if(sub){for(const gd of sub){sh[i][gd]=shuffleArr(DAY_TYPES,rng)[0];assigned[i]++;}done=true;}
+        }
+        if(done)continue;
+        continue; // nothing can be placed without breaking the streak rule
       }
       // fallback (rare): greedily place remaining on WEEKDAYS ONLY, relaxing the
       // streak rule if needed. Weekday capacity always covers each nurse's quota
