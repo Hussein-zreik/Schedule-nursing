@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" defer></script>
 <style>
 :root{
@@ -582,7 +583,18 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
     <h3>Cloud sync</h3>
     <div class="slbl">Unit code (share with your team)</div>
     <input class="ninput" id="unitInput" type="text" placeholder="e.g. ward-5b" autocomplete="off">
-    <div id="cloudStatusMsg" style="font-size:11px;color:var(--muted-2);margin-bottom:1rem;line-height:1.5"></div>
+    <div id="cloudStatusMsg" style="font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:var(--sp-4);line-height:var(--lh-normal)"></div>
+    <div class="slbl">Backup</div>
+    <div style="display:flex;gap:var(--sp-2);margin-bottom:var(--sp-2)">
+      <button class="btn" style="flex:1" onclick="exportBackup()" title="Download a full backup file (roster, requests, schedule settings)">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Export
+      </button>
+      <button class="btn" style="flex:1" onclick="document.getElementById('importFile').click()" title="Restore everything from a backup file">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg>Import
+      </button>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:var(--sp-4);line-height:var(--lh-normal)">Export saves everything to a file on this device. Import replaces the current schedule — you'll be asked to confirm, and it can be undone.</div>
     <div class="mactions" style="justify-content:space-between">
       <button class="btn danger" onclick="disconnectCloud()" title="Stop syncing on this device">Disconnect</button>
       <span style="display:flex;gap:8px">
@@ -661,6 +673,27 @@ let groups=Array.from({length:N},(_,i)=>i<10?'A':'B');
 let holBal=Array(N).fill(14);
 let vacBal=Array(N).fill(21);
 let order=Array.from({length:N},(_,i)=>i); // display order of rows (permutation of RN indices); does not affect generation
+// Stable per-nurse IDs. Requests are keyed by ID (never by row position), so
+// adding/removing/reordering nurses — on this device or another — can never
+// re-attach a request to the wrong person.
+let ids=Array.from({length:N},(_,i)=>'n'+i);
+function newId(){return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// legacy rosters migrate to deterministic ids ('n0','n1',…) so two devices
+// migrating the same saved state independently arrive at identical ids
+function ensureIds(){
+  if(!Array.isArray(ids))ids=[];
+  const seen=new Set();
+  for(let i=0;i<N;i++){
+    let v=ids[i];
+    // missing/duplicate -> deterministic 'n<index>' so two devices migrating the
+    // same legacy state produce identical ids (random only if that one is taken)
+    if(typeof v!=='string'||!v||seen.has(v))v=seen.has('n'+i)?newId():'n'+i;
+    ids[i]=v;seen.add(v);
+  }
+  ids.length=N;
+}
+const rid=i=>ids[i];                       // row index -> stable id
+function idxOfId(id){return ids.indexOf(id);}  // stable id -> row index (-1 if gone)
 function syncN(){N=names.length;} // roster size follows the names array
 function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
   if(!Array.isArray(order))order=[];
@@ -684,7 +717,7 @@ const HIST_MAX=100;
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY,JSON.stringify({
-      names,groups,holBal,vacBal,order,seed,
+      names,groups,holBal,vacBal,order,ids,seed,
       startDate:document.getElementById('startDate').value||startDateStr,
       theme,overrides,history,manualMode,committedCycles,cycleSeeds
     }));
@@ -713,11 +746,31 @@ function applyStateObject(s){
   if(typeof s.manualMode==='boolean')manualMode=s.manualMode;
   if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
-  syncN();normalizeOrder();
+  syncN();
+  // ids + one-time migration of index-keyed requests to id-keyed
+  const hadIds=Array.isArray(s.ids)&&s.ids.length>0;
+  ids=hadIds?s.ids.slice(0,N).map(String):[];
+  ensureIds();
+  if(!hadIds)migrateOverridesToIds();
+  normalizeOrder();
+}
+// legacy state stored requests as overrides[date][rowIndex]; convert to
+// overrides[date][stableId] exactly once (deterministic 'n<index>' ids)
+function migrateOverridesToIds(){
+  const out={};
+  for(const k in overrides){
+    const day=overrides[k],conv={};
+    for(const key in day){
+      if(/^\d+$/.test(key)){const i=+key;if(i>=0&&i<N)conv[ids[i]]=day[key];}
+      else conv[key]=day[key];           // already an id
+    }
+    if(Object.keys(conv).length)out[k]=conv;
+  }
+  overrides=out;
 }
 // shared data pushed to the cloud (theme stays local)
 function cloudStateObj(){
-  return {names,groups,holBal,vacBal,order,seed,
+  return {names,groups,holBal,vacBal,order,ids,seed,
     startDate:document.getElementById('startDate').value||startDateStr,
     overrides,history,manualMode,committedCycles,cycleSeeds};
 }
@@ -741,6 +794,7 @@ const firebaseConfig={
   appId:"1:878601839531:web:f6c3d2e92ae0c80d1fa8ee"
 };
 let cloudDb=null,unitCode='',cloudUnsub=null,applyingRemote=false,cloudStatus='off',pushTimer=null,cloudTries=0;
+let cloudAuth='off'; // 'ok' = signed in (rules can require auth) | 'pending' | 'off'
 function initCloud(){
   if(!window.firebase||!window.firebase.firestore){ // SDK still loading (deferred)
     if(cloudTries++<50)return setTimeout(initCloud,150);
@@ -748,6 +802,19 @@ function initCloud(){
   }
   try{ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig); cloudDb=firebase.firestore(); }
   catch(e){ cloudStatus='unavailable';updateCloudUI();return; }
+  // Sign in anonymously so the Firestore rules can require an authenticated
+  // user (see firestore.rules + SECURITY.md). This is deliberately non-blocking:
+  // if Anonymous sign-in isn't enabled in the Firebase console yet, sync keeps
+  // working exactly as before instead of breaking — it just stays unprotected,
+  // which the Cloud panel reports.
+  try{
+    if(firebase.auth){
+      cloudAuth='pending';
+      firebase.auth().signInAnonymously()
+        .then(()=>{cloudAuth='ok';updateCloudUI();})
+        .catch(err=>{cloudAuth='off';console.warn('Cloud auth unavailable ('+(err&&err.code)+') — enable Anonymous sign-in in the Firebase console to secure the database');updateCloudUI();});
+    }
+  }catch(e){cloudAuth='off';}
   try{ const saved=localStorage.getItem('rn_unit'); if(saved)connectCloud(saved); else updateCloudUI(); }
   catch(e){ updateCloudUI(); }
 }
@@ -798,7 +865,13 @@ function updateCloudUI(){
   b.className='btn ghost cloud-'+(cls||'');
   b.innerHTML=cloud+'<span class="btxt">'+(cloudStatus==='synced'?('Synced · '+unitCode):label)+'</span>';
   const msg=document.getElementById('cloudStatusMsg');
-  if(msg){const m={off:'Not connected. Enter a unit code and Connect to share this schedule live across devices.',connecting:'Connecting…',synced:'✓ Live-syncing as "'+unitCode+'". Anyone who enters this code shares this schedule.',error:'Connection error — check your unit code and internet, or the Firestore security rules.',unavailable:'Cloud unavailable (could not load Firebase). The app still works and saves locally.'};msg.textContent=m[cloudStatus]||m.off;}
+  if(msg){const m={off:'Not connected. Enter a unit code and Connect to share this schedule live across devices.',connecting:'Connecting…',synced:'✓ Live-syncing as "'+unitCode+'". Anyone who enters this code shares this schedule.',error:'Connection error — check your unit code and internet, or the Firestore security rules.',unavailable:'Cloud unavailable (could not load Firebase). The app still works and saves locally.'};
+    let txt=m[cloudStatus]||m.off;
+    // tell the user plainly whether the database itself is protected
+    if(cloudStatus==='synced'||cloudStatus==='connecting')
+      txt+=cloudAuth==='ok'?'  🔒 Database secured (signed in).'
+                           :'  ⚠ Database NOT secured — anyone who finds it can read or change it. See SECURITY.md.';
+    msg.textContent=txt;}
   const inp=document.getElementById('unitInput'); if(inp&&unitCode&&!inp.value)inp.value=unitCode;
 }
 function openCloud(){updateCloudUI();const inp=document.getElementById('unitInput');if(inp)inp.value=unitCode;document.getElementById('cloudModal').classList.add('open');}
@@ -843,13 +916,15 @@ lockEl('pw1').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDef
 /* ---------- change memory (history + undo) ---------- */
 function snapshot(){
   return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],order:[...order],
-          seed,overrides:JSON.parse(JSON.stringify(overrides))};
+          ids:[...ids],seed,overrides:JSON.parse(JSON.stringify(overrides))};
 }
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
   seed=s.seed;overrides=JSON.parse(JSON.stringify(s.overrides));
   order=Array.isArray(s.order)?[...s.order]:[];
-  syncN();normalizeOrder();
+  syncN();
+  ids=Array.isArray(s.ids)?[...s.ids]:[];ensureIds();
+  normalizeOrder();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
 function pushHistory(label,before){
@@ -1003,7 +1078,7 @@ function computeSchedule(off,applyBoundary=true){
   const locks=Array.from({length:N},()=>Array(14).fill(null));
   for(let d=0;d<14;d++){
     const o=overrides[isoKey(days14[d])];
-    if(o)for(const ri in o){const idx=+ri;if(idx>=0&&idx<N){locks[idx][d]=o[ri];sh[idx][d]=o[ri];}}
+    if(o)for(const key in o){const idx=idxOfId(key);if(idx>=0){locks[idx][d]=o[key];sh[idx][d]=o[key];}}
   }
 
   // Manual mode: an un-generated fortnight stays EMPTY except for the entered
@@ -1265,7 +1340,7 @@ function computeSchedule(off,applyBoundary=true){
   // 3) apply saved manual overrides keyed by absolute date
   for(let d=0;d<14;d++){
     const k=isoKey(days14[d]);
-    if(overrides[k])for(const ri in overrides[k]){const idx=+ri;if(idx>=0&&idx<N)sh[idx][d]=overrides[k][ri];}
+    if(overrides[k])for(const key in overrides[k]){const idx=idxOfId(key);if(idx>=0)sh[idx][d]=overrides[k][key];}
   }
 
   return {days:days14,sh,weekStart:base};
@@ -1435,9 +1510,9 @@ function addRN(g){
   const before=snapshot();
   const nm=nextRnName();
   names.push(nm);groups.push(grp);holBal.push(14);vacBal.push(21);
+  ids.push(newId());                       // stable id — requests bind to this, not the row
   order.push(names.length-1); // show the new RN at the end of the list
-  syncN();normalizeOrder();
-  // new RN is appended, so existing indices (and their requests) are unaffected
+  syncN();ensureIds();normalizeOrder();
   pushHistory(`Added ${nm} to Group ${grp}`,before);
   render();saveState();
   toast(`${nm} added to Group ${grp} — schedule adapted`);
@@ -1445,14 +1520,15 @@ function addRN(g){
 function removeRN(i){
   if(N<=1){toast('Cannot remove the last RN');return;}
   const before=snapshot();
-  const nm=names[i],grp=groups[i];
-  names.splice(i,1);groups.splice(i,1);holBal.splice(i,1);vacBal.splice(i,1);
+  const nm=names[i],grp=groups[i],gone=ids[i];
+  names.splice(i,1);groups.splice(i,1);holBal.splice(i,1);vacBal.splice(i,1);ids.splice(i,1);
   order=order.filter(x=>x!==i).map(x=>x>i?x-1:x); // drop it and re-index the rest
-  // re-index requests too: drop the removed nurse's, shift higher indices down 1
-  for(const k in overrides){const o=overrides[k],n={};
-    for(const ri in o){const x=+ri;if(x===i)continue;n[x>i?x-1:x]=o[ri];}
-    if(Object.keys(n).length)overrides[k]=n;else delete overrides[k];}
-  syncN();normalizeOrder();
+  // requests are keyed by stable id, so only this nurse's own entries are dropped
+  // — nobody else's requests move (no re-indexing needed)
+  for(const k in overrides){const o=overrides[k];
+    if(o[gone]!==undefined)delete o[gone];
+    if(!Object.keys(o).length)delete overrides[k];}
+  syncN();ensureIds();normalizeOrder();
   pushHistory(`Removed ${nm} (Group ${grp})`,before);
   closeNameM();render();saveState();
   toast(`${nm} removed — schedule adapted`);
@@ -1523,7 +1599,7 @@ function reqRenderDays(){
   let h='';
   for(let d=0;d<14;d++){
     const wknd=(d%7)>=5?' wknd':'';
-    const has=overrides[isoKey(days[d])]&&overrides[isoKey(days[d])][rn]!==undefined?' has-req':'';
+    const has=overrides[isoKey(days[d])]&&overrides[isoKey(days[d])][rid(rn)]!==undefined?' has-req':'';
     const sel=reqSelDays.has(d)?' sel':'';
     h+=`<div class="req-day${wknd}${sel}${has}" onclick="reqToggleDay(${d})" title="${has?'already has a request for this nurse':''}">
         <div class="rd-dn">${DAYS[d%7]}</div><div class="rd-dt">${fmt(days[d])}</div></div>`;
@@ -1545,7 +1621,7 @@ function renderRequests(){
   reqRenderDays();
   // logged requests list (all dates, sorted)
   const items=[];
-  for(const k in overrides)for(const ri in overrides[k]){const i=+ri;if(i>=0&&i<N)items.push({k,i,t:overrides[k][ri]});}
+  for(const k in overrides)for(const key in overrides[k]){const i=idxOfId(key);if(i>=0)items.push({k,i,id:key,t:overrides[k][key]});}
   items.sort((a,b)=>a.k<b.k?-1:a.k>b.k?1:a.i-b.i);
   document.getElementById('reqCount').textContent=items.length?`(${items.length})`:'';
   const box=document.getElementById('reqList');
@@ -1557,7 +1633,7 @@ function renderRequests(){
       return `<div class="req-row"><span class="rr-rn">${escapeHtml(names[it.i])}</span>`+
         `<span class="rr-date">${lbl}</span>`+
         `<span class="rr-badge b-${it.t}">${it.t==='REQ'?'Req off':it.t}</span>`+
-        `<button class="rr-del" title="Delete this request" onclick="reqDelete('${it.k}',${it.i})">✕</button></div>`;
+        `<button class="rr-del" title="Delete this request" onclick="reqDelete('${it.k}','${it.id}')">✕</button></div>`;
     }).join('');
   }
 }
@@ -1567,18 +1643,19 @@ function reqAdd(){
   if(!reqSelDays.size){msg.textContent='Pick at least one day.';return;}
   const days=reqDates(),before=snapshot();
   let n=0;
-  for(const d of reqSelDays){const k=isoKey(days[d]);if(!overrides[k])overrides[k]={};overrides[k][rn]=type;n++;}
+  for(const d of reqSelDays){const k=isoKey(days[d]);if(!overrides[k])overrides[k]={};overrides[k][rid(rn)]=type;n++;}
   pushHistory(`Request: ${names[rn]} · ${type==='REQ'?'Req off':type} × ${n} day${n>1?'s':''}`,before);
   reqSelDays=new Set();
   render();saveState();renderRequests();
   msg.textContent=`Added ${n} — schedule updated.`;
   setTimeout(()=>{msg.textContent='';},2600);
 }
-function reqDelete(k,i){
-  if(!overrides[k]||overrides[k][i]===undefined)return;
+function reqDelete(k,id){
+  if(!overrides[k]||overrides[k][id]===undefined)return;
   const before=snapshot();
-  delete overrides[k][i];if(!Object.keys(overrides[k]).length)delete overrides[k];
-  pushHistory(`Removed request: ${names[i]} · ${k}`,before);
+  const i=idxOfId(id),who=i>=0?names[i]:'RN';
+  delete overrides[k][id];if(!Object.keys(overrides[k]).length)delete overrides[k];
+  pushHistory(`Removed request: ${who} · ${k}`,before);
   render();saveState();renderRequests();
 }
 function reqClearAll(){
@@ -1593,6 +1670,45 @@ function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
 function regen(){const b=snapshot();pushHistory('Regenerated schedule',b);seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;render();saveState();toast('New schedule generated — requests kept');}
+
+/* ---------- backup: export / import the whole schedule as a file ---------- */
+const BACKUP_VER=1;
+function exportBackup(){
+  try{
+    const data={app:'rn-rotating-schedule',version:BACKUP_VER,exported:new Date().toISOString(),
+      state:cloudStateObj()};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`RN_schedule_backup_${isoKey(new Date())}.json`;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    toast('Backup downloaded');
+  }catch(e){console.error('backup export failed',e);toast('Backup export failed');}
+}
+function importBackup(input){
+  const file=input.files&&input.files[0];
+  input.value='';                       // allow re-picking the same file later
+  if(!file)return;
+  const fr=new FileReader();
+  fr.onload=()=>{
+    let data;
+    try{data=JSON.parse(fr.result);}catch(e){toast('That file is not a valid backup');return;}
+    const s=(data&&data.state&&typeof data.state==='object')?data.state:data;
+    if(!s||!Array.isArray(s.names)||!s.names.length){toast('That file is not a valid backup');return;}
+    const when=data&&data.exported?new Date(data.exported).toLocaleString('en-GB'):'unknown date';
+    if(!confirm(`Restore this backup?\n\n${s.names.length} nurses · saved ${when}\n\nThis replaces the current schedule on this device (and syncs to the cloud if connected). You can undo it afterwards.`))return;
+    const before=snapshot();
+    applyStateObject(s);
+    const si=document.getElementById('startDate');if(startDateStr)si.value=startDateStr;
+    cycleOffset=autoOffset(startDateStr);
+    pushHistory('Restored from backup file',before);
+    render();saveState();
+    toast(`Restored ${s.names.length} nurses from backup`);
+  };
+  fr.onerror=()=>toast('Could not read that file');
+  fr.readAsText(file);
+}
 
 /* ---------- Auto / Manual mode ---------- */
 // ISO date of a cycle's start Monday — the key for committed fortnights / seeds
@@ -1639,7 +1755,7 @@ function openCellM(ri,di){
   document.getElementById('mTitle').textContent=`${names[ri]} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
   document.getElementById('mOpts').innerHTML=ALL_TYPES.map(s=>`<button class="mbtn${mSel===s?' sel':''}" data-s="${s}" onclick="pickSh('${s}')">${LABELS_M[s]}</button>`).join('');
   const k=isoKey(sched.days[di]);
-  const hasEntry=overrides[k]&&overrides[k][ri]!==undefined;
+  const hasEntry=overrides[k]&&overrides[k][rid(ri)]!==undefined;
   document.getElementById('resetCellBtn').style.display=hasEntry?'':'none';
   document.getElementById('cellModal').classList.add('open');
 }
@@ -1654,7 +1770,7 @@ function saveCell(){
       const k=isoKey(sched.days[mDay]);
       // every choice (including Off) becomes a locked entry the schedule keeps.
       // Use "Reset to auto" to remove it and let the generator fill this cell again.
-      if(!overrides[k])overrides[k]={}; overrides[k][mRn]=mSel;
+      if(!overrides[k])overrides[k]={}; overrides[k][rid(mRn)]=mSel;
     }
   }
   closeCell();render();saveState();   // rebuild so the rest of the schedule adapts around the locked cell
@@ -1662,10 +1778,10 @@ function saveCell(){
 function resetCell(){ // remove a manual entry / request for this cell -> back to auto-fill
   if(mRn!==null&&mDay!==null){
     const k=isoKey(sched.days[mDay]);
-    if(overrides[k]&&overrides[k][mRn]!==undefined){
+    if(overrides[k]&&overrides[k][rid(mRn)]!==undefined){
       const b=snapshot();
       pushHistory(`${names[mRn]} · ${DAYS[mDay%7]} ${fmt(sched.days[mDay])}: reset to auto`,b);
-      delete overrides[k][mRn];
+      delete overrides[k][rid(mRn)];
       if(!Object.keys(overrides[k]).length)delete overrides[k];
     }
   }
@@ -2182,6 +2298,7 @@ function downloadFairnessPDF(){
 
 /* ---------- init ---------- */
 loadState();
+syncN();ensureIds();   // fresh installs (no saved state) still need stable ids
 applyTheme();
 lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it
