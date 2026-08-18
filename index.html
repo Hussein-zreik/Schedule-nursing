@@ -1140,6 +1140,38 @@ function pickWeekdaySubset(row,freeWk,rem,rng){
   return valid[Math.floor(rng()*valid.length)];
 }
 
+/* ---------- weekend fairness history ----------
+   How many weekend DAYS each nurse has already worked before a given cycle.
+   Replayed deterministically from cycle 0 with the same picking rule, so it
+   needs no stored state and two devices always agree. Memoised, and rebuilt
+   only when the roster itself changes. Sat+Sun team counts 2 days, the
+   Saturday-only extra counts 1, so the tally matches real weekend load. */
+let _wkSig='',_wkRows=[];
+const WK_REPLAY_CAP=520;                       // ~20 years; keeps far browsing cheap
+function weekendHistory(off,aIdxs,bIdxs,pick,n){
+  const sig=n+'|'+groups.join('')+'|'+order.join(',');
+  if(sig!==_wkSig){_wkSig=sig;_wkRows=[Array(n).fill(0)];}
+  if(off<=0)return _wkRows[0];
+  const want=Math.min(off,WK_REPLAY_CAP);
+  while(_wkRows.length<=want){
+    const o=_wkRows.length-1,c=_wkRows[o].slice();
+    const ns=new Set([...pick(aIdxs,o),...pick(bIdxs,o)]);
+    const nextA=new Set(pick(aIdxs,o+1));
+    const usedC=new Set();
+    for(let w=0;w<2;w++){
+      const st=(((o*2+w)*3)%n+n)%n,p=[];
+      for(let k=0;k<n;k++){const i=(st+k)%n;
+        if(ns.has(i)||usedC.has(i))continue;
+        if(w===1&&nextA.has(i))continue;
+        p.push(i);}
+      p.sort((x,y)=>c[x]-c[y]);                // fewest weekend days first
+      for(let q=0;q<3&&q<p.length;q++){c[p[q]]+=(q<2?2:1);usedC.add(p[q]);}
+    }
+    _wkRows.push(c);
+  }
+  return _wkRows[want];
+}
+
 /* ---------- schedule generation (hardened) ----------
    Guarantees: every non-night nurse works exactly `quota` day/eve shifts,
    and every day meets DAILY_MIN whenever the roster has the capacity. */
@@ -1243,6 +1275,9 @@ function computeSchedule(off,applyBoundary=true){
   // (w=1) we also skip the NEXT cycle's Night-A pair (they work Mon+Tue nights
   // right after, which with Sat+Sun would make a 4-day run across the seam).
   const nextNightA=new Set(nextNightA_ids);
+  // weekend days each nurse has already worked — used to hand the next weekend
+  // to whoever has done the fewest, instead of just the next name on the list
+  const wkHist=weekendHistory(off,aIdxs,bIdxs,pickPair,N);
   function placeWeekendDuty(){
     const used=new Set();
     const cnt=(d,t)=>{let c=0;for(let i=0;i<N;i++)if(sh[i][d]===t)c++;return c;};
@@ -1258,6 +1293,9 @@ function computeSchedule(off,applyBoundary=true){
         if(locks[i][satD]!==null||locks[i][sunD]!==null)continue; // already carries a weekend request
         pool.push(i);
       }
+      // fairness: fewest weekend days so far goes first. Sort is stable, so
+      // nurses on an equal count keep the rotation (pointer) order below.
+      pool.sort((a,b)=>(wkHist[a]||0)-(wkHist[b]||0));
       let pi=0;const take=()=>pi<pool.length?pool[pi++]:null;
       // remaining need after requested (locked) weekend workers already in place
       let rSatD7=Math.max(0,2-cnt(satD,'D7')),rSun=Math.max(0,2-cnt(sunD,'D7')),rS10=Math.max(0,1-cnt(satD,'S10'));
