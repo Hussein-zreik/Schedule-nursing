@@ -145,6 +145,9 @@ input[type=date]:focus{border-color:var(--border-3)}
 .cyc-who{font-weight:600;color:var(--text)}
 .cyc-tag{font-size:var(--fs-xs);color:var(--muted-2);font-weight:400}
 .cyc-next{font-size:var(--fs-xs);color:var(--muted-2);margin-top:var(--sp-2);padding-top:var(--sp-2);border-top:1px dashed var(--border-2)}
+.cyc-exp{font-size:var(--fs-xs);color:var(--muted-3);font-family:var(--font-mono);padding:0 0 4px 110px}
+.cyc-exp.off{color:var(--warn)}
+@media (max-width:820px){.cyc-exp{padding-left:0}}
 .roster-ctl{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-5);font-size:var(--fs-sm);color:var(--muted)}
 .roster-ctl b{color:var(--text-strong);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 .btn.sm{padding:0 9px;height:28px;font-size:var(--fs-xs)}
@@ -1140,36 +1143,36 @@ function pickWeekdaySubset(row,freeWk,rem,rng){
   return valid[Math.floor(rng()*valid.length)];
 }
 
-/* ---------- weekend fairness history ----------
-   How many weekend DAYS each nurse has already worked before a given cycle.
-   Replayed deterministically from cycle 0 with the same picking rule, so it
-   needs no stored state and two devices always agree. Memoised, and rebuilt
-   only when the roster itself changes. Sat+Sun team counts 2 days, the
-   Saturday-only extra counts 1, so the tally matches real weekend load. */
-let _wkSig='',_wkRows=[];
-const WK_REPLAY_CAP=520;                       // ~20 years; keeps far browsing cheap
-function weekendHistory(off,aIdxs,bIdxs,pick,n){
-  const sig=n+'|'+groups.join('')+'|'+order.join(',');
-  if(sig!==_wkSig){_wkSig=sig;_wkRows=[Array(n).fill(0)];}
-  if(off<=0)return _wkRows[0];
-  const want=Math.min(off,WK_REPLAY_CAP);
-  while(_wkRows.length<=want){
-    const o=_wkRows.length-1,c=_wkRows[o].slice();
-    const ns=new Set([...pick(aIdxs,o),...pick(bIdxs,o)]);
-    const nextA=new Set(pick(aIdxs,o+1));
-    const usedC=new Set();
-    for(let w=0;w<2;w++){
-      const st=(((o*2+w)*3)%n+n)%n,p=[];
-      for(let k=0;k<n;k++){const i=(st+k)%n;
-        if(ns.has(i)||usedC.has(i))continue;
-        if(w===1&&nextA.has(i))continue;
-        p.push(i);}
-      p.sort((x,y)=>c[x]-c[y]);                // fewest weekend days first
-      for(let q=0;q<3&&q<p.length;q++){c[p[q]]+=(q<2?2:1);usedC.add(p[q]);}
-    }
-    _wkRows.push(c);
-  }
-  return _wkRows[want];
+/* ---------- rotation turns (nights + weekends) ----------
+   One source of truth used by both the scheduler and the info panel.
+   Nurses are walked in the on-screen list order, split by group.
+   Nights: the pair at position off*2 in each group.
+   Weekends: the NEXT pair, two places after the night pair -- so the weekend
+   turn always follows the night turn. Group A covers weekend 1 (the week they
+   work 4 duties) and Group B covers weekend 2 (their 4-duty week). */
+function groupSeq(){
+  const seq=[],seen=new Set();
+  for(const x of order)if(Number.isInteger(x)&&x>=0&&x<N&&!seen.has(x)){seen.add(x);seq.push(x);}
+  for(let i=0;i<N;i++)if(!seen.has(i))seq.push(i);
+  const a=[],b=[];for(const i of seq)(groups[i]==='A'?a:b).push(i);
+  return {a,b};
+}
+function pairAt(idxs,s){
+  if(!idxs.length)return [];
+  if(idxs.length===1)return [idxs[0]];
+  const k=((s%idxs.length)+idxs.length)%idxs.length;
+  return [idxs[k],idxs[(k+1)%idxs.length]];
+}
+// whose turn it is in a given cycle — pure, so the info panel can show the
+// expected turn even when the schedule on screen has been edited by hand
+function turnFor(off){
+  const {a,b}=groupSeq();
+  const nightA=pairAt(a,off*2),nightB=pairAt(b,off*2);
+  let wkndA=pairAt(a,off*2+2),wkndB=pairAt(b,off*2+2);
+  // tiny groups: never let the weekend pair collide with the night pair
+  if(a.length<4)wkndA=wkndA.filter(i=>!nightA.includes(i));
+  if(b.length<4)wkndB=wkndB.filter(i=>!nightB.includes(i));
+  return {nightA,nightB,wkndA,wkndB};
 }
 
 /* ---------- schedule generation (hardened) ----------
@@ -1208,20 +1211,8 @@ function computeSchedule(off,applyBoundary=true){
   // Walk the roster in the on-screen LIST order (the `order` permutation) so the
   // night rotation follows "the next 2 down the list" in each group even after
   // rows have been reordered. Falls back to natural order for any missing indices.
-  const seq=[],seen=new Set();
-  for(const x of order)if(Number.isInteger(x)&&x>=0&&x<N&&!seen.has(x)){seen.add(x);seq.push(x);}
-  for(let i=0;i<N;i++)if(!seen.has(i))seq.push(i);
-  const aIdxs=[],bIdxs=[];
-  for(const i of seq)(groups[i]==='A'?aIdxs:bIdxs).push(i);
-  // pick a cycle's night pair from a group, rotating by 2 each cycle.
-  // `o` defaults to the current cycle; pass o-1 to get the previous cycle's pair.
-  // handles small groups gracefully (0 or 1 member -> that many nurses).
-  function pickPair(idxs,o=off){
-    if(idxs.length===0)return [];
-    if(idxs.length===1)return [idxs[0]];
-    const s=(((o*2)%idxs.length)+idxs.length)%idxs.length;
-    return [idxs[s],idxs[(s+1)%idxs.length]];
-  }
+  const {a:aIdxs,b:bIdxs}=groupSeq();
+  const TURN=turnFor(off);
   // ----- NIGHTS ARE MANUAL -----
   // The night TURN is fixed by the rotation and never changes. Each turn's pair
   // gets the fixed night pattern, and that is all the app decides: nights are
@@ -1230,9 +1221,8 @@ function computeSchedule(off,applyBoundary=true){
   // cover it and the off nurse is not given a replacement night. You fill any
   // gap by hand; the banner reports nights that aren't covered by 2 RNs.
   // (Day shifts still adapt automatically — see assignWeek below.)
-  const nightA=pickPair(aIdxs),nightB=pickPair(bIdxs);
+  const nightA=TURN.nightA,nightB=TURN.nightB;
   const nightSet=new Set([...nightA,...nightB]);
-  const nextNightA_ids=pickPair(aIdxs,off+1); // next cycle's Night-A (turn) for the weekend seam
   const NA_DAYS=[0,1,5,6,9,10,11],NB_DAYS=[2,3,4,7,8,12,13];
   for(const i of nightA)for(const d of NA_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
   for(const i of nightB)for(const d of NB_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
@@ -1264,52 +1254,46 @@ function computeSchedule(off,applyBoundary=true){
     }
   }
 
-  // ----- Weekend DAY duty: independent rotation, skips night nurses -----
-  // Target per weekend: Sat = 2*D7 + 1*S10, Sun = 2*D7. Normally a 2-RN team
-  // works Sat+Sun D7 and a 3rd works the Sat-only S10. But a REQUESTED weekend
-  // worker (locked D7/S10 on Sat or Sun) already counts toward the target, so
-  // the auto team only fills the REMAINDER -- otherwise the weekend would be
-  // over-staffed and the displaced nurses wouldn't move to weekdays. The turn
-  // order advances 3 per weekend and skips whoever is on nights, already used
-  // this cycle, or already carries a weekend request. For the closing weekend
-  // (w=1) we also skip the NEXT cycle's Night-A pair (they work Mon+Tue nights
-  // right after, which with Sat+Sun would make a 4-day run across the seam).
-  const nextNightA=new Set(nextNightA_ids);
-  // weekend days each nurse has already worked — used to hand the next weekend
-  // to whoever has done the fewest, instead of just the next name on the list
-  const wkHist=weekendHistory(off,aIdxs,bIdxs,pickPair,N);
+  // ----- Weekend DAY duty: a FIXED TURN that follows the night turn -----
+  // The weekend pair is the pair two places after the night pair in the same
+  // group, so the weekend turn trails the night turn down the list.
+  //   Group A covers weekend 1 (days 5-6)  -- the week they work 4 duties
+  //   Group B covers weekend 2 (days 12-13) -- their 4-duty week
+  // Both work Sat AND Sun (D7). The Saturday-only extra (S10) is NOT part of
+  // the turn: in Auto mode it is filled by a random available nurse, and in
+  // Manual mode it is left blank for you to place by hand.
   function placeWeekendDuty(){
-    const used=new Set();
     const cnt=(d,t)=>{let c=0;for(let i=0;i<N;i++)if(sh[i][d]===t)c++;return c;};
-    for(let w=0;w<2;w++){
+    const plan=[{w:0,pair:TURN.wkndA},{w:1,pair:TURN.wkndB}];
+    for(const{w,pair}of plan){
       const satD=w*7+5,sunD=w*7+6;
-      const start=(((off*2+w)*3)%N+N)%N;       // independent pointer (floor-mod)
-      // eligible pool, in pointer order
-      const pool=[];
-      for(let k=0;k<N;k++){const i=(start+k)%N;
-        if(nightSet.has(i)||used.has(i))continue;
-        if(w===1&&nextNightA.has(i))continue;
-        if(sh[i][satD]!=='OFF'||sh[i][sunD]!=='OFF')continue;   // free both weekend days
-        if(locks[i][satD]!==null||locks[i][sunD]!==null)continue; // already carries a weekend request
-        pool.push(i);
+      for(const i of pair){
+        if(nightSet.has(i))continue;                  // safety: tiny groups
+        if(locks[i][satD]===null&&sh[i][satD]==='OFF')sh[i][satD]='D7';
+        if(locks[i][sunD]===null&&sh[i][sunD]==='OFF')sh[i][sunD]='D7';
       }
-      // fairness: fewest weekend days so far goes first. Sort is stable, so
-      // nurses on an equal count keep the rotation (pointer) order below.
-      pool.sort((a,b)=>(wkHist[a]||0)-(wkHist[b]||0));
-      let pi=0;const take=()=>pi<pool.length?pool[pi++]:null;
-      // remaining need after requested (locked) weekend workers already in place
-      let rSatD7=Math.max(0,2-cnt(satD,'D7')),rSun=Math.max(0,2-cnt(sunD,'D7')),rS10=Math.max(0,1-cnt(satD,'S10'));
-      const both=Math.min(rSatD7,rSun);                       // work Sat+Sun D7
-      for(let n=0;n<both;n++){const i=take();if(i==null)break;sh[i][satD]='D7';sh[i][sunD]='D7';used.add(i);rSatD7--;rSun--;}
-      while(rSatD7>0){const i=take();if(i==null)break;sh[i][satD]='D7';used.add(i);rSatD7--;}   // leftover Sat-only D7
-      while(rSun>0){const i=take();if(i==null)break;sh[i][sunD]='D7';used.add(i);rSun--;}        // leftover Sun-only D7
-      while(rS10>0){const i=take();if(i==null)break;sh[i][satD]='S10';used.add(i);rS10--;}       // Sat-only S10 extra
-      // Closing weekend: anyone working BOTH Sat(12)+Sun(13) as day duty stays off
-      // the preceding Friday (day 11) so their trailing run is exactly 2 -- this
-      // covers auto team members and requested weekend workers alike.
-      if(w===1)for(let i=0;i<N;i++){
-        if(!nightSet.has(i)&&WORK_TYPES.has(sh[i][12])&&WORK_TYPES.has(sh[i][13])&&sh[i][11]==='OFF'&&locks[i][11]===null)sh[i][11]='RST';
+    }
+    // Saturday extra (S10) — random in Auto mode, left for you in Manual mode.
+    // Seeded from the cycle so it is stable and identical on every device.
+    if(!manualMode){
+      for(const w of [0,1]){
+        const satD=w*7+5;
+        if(cnt(satD,'S10')>=1)continue;               // a request already covers it
+        const cand=[];
+        for(let i=0;i<N;i++){
+          if(nightSet.has(i))continue;
+          if(sh[i][satD]!=='OFF'||locks[i][satD]!==null)continue;
+          cand.push(i);
+        }
+        if(!cand.length)continue;
+        const r=mkRng((seed^(off*0x27d4eb2d)^(w*0x165667b1))>>>0);
+        sh[cand[Math.floor(r()*cand.length)]][satD]='S10';
       }
+    }
+    // Closing weekend: anyone working BOTH Sat(12)+Sun(13) stays off the
+    // preceding Friday so their run into the next cycle stays within 3.
+    for(let i=0;i<N;i++){
+      if(!nightSet.has(i)&&WORK_TYPES.has(sh[i][12])&&WORK_TYPES.has(sh[i][13])&&sh[i][11]==='OFF'&&locks[i][11]===null)sh[i][11]='RST';
     }
   }
   placeWeekendDuty();
@@ -1597,7 +1581,13 @@ function renderBanner(){
   const level=(short.length||notSeven||nightGaps.length)?'bad':'warn';
   let hint='';
   if(nightGaps.length)hint='<div class="bhint">Nights are manual: assign a replacement yourself by clicking the night cell.</div>';
-  else if(short.length)hint='<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
+  else if(short.length){
+    // the commonest case in Manual mode: the Saturday extra is yours to place
+    const satOnly=short.every(x=>x.startsWith('Sat'));
+    hint=satOnly
+      ? '<div class="bhint">The Saturday extra (S10) is not part of the weekend turn — click that Saturday cell to assign someone.</div>'
+      : '<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
+  }
   el.className='banner '+level;
   el.innerHTML=`<span class="bic">⚠</span><div>${parts.join(' &nbsp;·&nbsp; ')}${hint}</div>`;
 }
@@ -1661,25 +1651,26 @@ function renderCycleInfo(){
   const{days,sh}=sched;
   const nm=i=>escapeHtml(names[i]);
   const range=(a,b)=>`${fmt(days[a])} – ${fmt(days[b])}`;
-  const who=list=>list.length?list.map(nm).join(' + '):'<span class="cyc-tag">nobody yet</span>';
+  const who=list=>list.length?list.map(nm).join(' + '):'<span class="cyc-tag">nobody</span>';
+  const T=turnFor(cycleOffset);                       // whose turn it SHOULD be
+  const same=(x,y)=>x.length===y.length&&x.every(v=>y.includes(v));
+  // "should be" line — marked when the schedule on screen doesn't match the turn
+  const expect=(list,actual)=>{
+    const ok=same(list,actual);
+    return `<div class="cyc-exp${ok?'':' off'}">turn: ${list.length?list.map(nm).join(' + '):'—'}${ok?'':' ⚠ changed'}</div>`;
+  };
 
-  // --- nights: group the night nurses by which weekend they cover ---
+  // --- nights ---
   const nightIdx=[];for(let i=0;i<N;i++)if(sh[i].includes('N7'))nightIdx.push(i);
-  const wk1=nightIdx.filter(i=>sh[i][5]==='N7'||sh[i][6]==='N7');      // works wk-1 weekend nights
-  const wk2=nightIdx.filter(i=>sh[i][12]==='N7'||sh[i][13]==='N7');    // works wk-2 weekend nights
-  const other=nightIdx.filter(i=>!wk1.includes(i)&&!wk2.includes(i));
+  const nA=nightIdx.filter(i=>sh[i][0]==='N7'||sh[i][5]==='N7'||sh[i][6]==='N7');
+  const nB=nightIdx.filter(i=>!nA.includes(i));
   const nCount=i=>sh[i].filter(x=>x==='N7').length;
   let nights='<div class="cyc-col"><h4>🌙 Night turn</h4>';
-  nights+=`<div class="cyc-line"><span class="cyc-when">${range(5,6)}</span><span class="cyc-who">${who(wk1)}</span><span class="cyc-tag">weekend 1 nights</span></div>`;
-  nights+=`<div class="cyc-line"><span class="cyc-when">${range(12,13)}</span><span class="cyc-who">${who(wk2)}</span><span class="cyc-tag">weekend 2 nights</span></div>`;
-  if(other.length)nights+=`<div class="cyc-line"><span class="cyc-when">weekdays</span><span class="cyc-who">${who(other)}</span></div>`;
-  nights+=`<div class="cyc-next">On nights: ${nightIdx.length?nightIdx.map(i=>nm(i)+' ('+nCount(i)+')').join(' · '):'nobody'}</div>`;
-  // next cycle's pairs, so you can see what's coming
-  try{
-    const nx=computeSchedule(cycleOffset+1,false).sh;const nn=[];
-    for(let i=0;i<N&&i<nx.length;i++)if(nx[i].includes('N7'))nn.push(nm(i));
-    if(nn.length)nights+=`<div class="cyc-next">Next cycle: ${nn.join(' · ')}</div>`;
-  }catch(e){}
+  nights+=`<div class="cyc-line"><span class="cyc-when">${range(5,6)}</span><span class="cyc-who">${who(nA)}</span><span class="cyc-tag">Group A · wknd 1 nights</span></div>`+expect(T.nightA,nA);
+  nights+=`<div class="cyc-line"><span class="cyc-when">${range(12,13)}</span><span class="cyc-who">${who(nB)}</span><span class="cyc-tag">Group B · wknd 2 nights</span></div>`+expect(T.nightB,nB);
+  nights+=`<div class="cyc-next">Nights worked: ${nightIdx.length?nightIdx.map(i=>nm(i)+' ('+nCount(i)+')').join(' · '):'nobody'}</div>`;
+  const NX=turnFor(cycleOffset+1);
+  nights+=`<div class="cyc-next">Next cycle → nights ${[...NX.nightA,...NX.nightB].map(nm).join(' · ')}</div>`;
   nights+='</div>';
 
   // --- weekend day duty ---
@@ -1688,14 +1679,15 @@ function renderCycleInfo(){
     const sa=w*7+5,su=w*7+6,team=[],extra=[];
     for(let i=0;i<N;i++){
       const s=sh[i][sa],e=sh[i][su];
-      if(s==='N7'||e==='N7')continue;                       // nights are listed on the left
-      const worksSat=WORK_TYPES.has(s),worksSun=WORK_TYPES.has(e);
-      if(worksSat&&worksSun)team.push(i);
-      else if(worksSat||worksSun)extra.push(i);
+      if(s==='N7'||e==='N7')continue;                   // nights listed on the left
+      const ws=WORK_TYPES.has(s),we=WORK_TYPES.has(e);
+      if(ws&&we)team.push(i);else if(ws||we)extra.push(i);
     }
-    wknd+=`<div class="cyc-line"><span class="cyc-when">${range(sa,su)}</span><span class="cyc-who">${who(team)}</span><span class="cyc-tag">Sat + Sun</span></div>`;
-    wknd+=`<div class="cyc-line"><span class="cyc-when"></span><span class="cyc-who">${who(extra)}</span><span class="cyc-tag">Saturday only</span></div>`;
+    const turnPair=w===0?T.wkndA:T.wkndB;
+    wknd+=`<div class="cyc-line"><span class="cyc-when">${range(sa,su)}</span><span class="cyc-who">${who(team)}</span><span class="cyc-tag">Sat + Sun · Group ${w===0?'A':'B'}</span></div>`+expect(turnPair,team);
+    wknd+=`<div class="cyc-line"><span class="cyc-when"></span><span class="cyc-who">${who(extra)}</span><span class="cyc-tag">Saturday only${manualMode?' · add manually':''}</span></div>`;
   }
+  wknd+=`<div class="cyc-next">Next cycle → weekends ${[...NX.wkndA,...NX.wkndB].map(nm).join(' · ')}</div>`;
   wknd+='</div>';
   body.innerHTML=nights+wknd;
 
