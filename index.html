@@ -680,6 +680,12 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
       <button class="btn sm" onclick="moveRn(-1)" title="Move up one position">▲ Move up</button>
       <button class="btn sm" onclick="moveRn(1)" title="Move down one position">▼ Move down</button>
     </div>
+    <div class="slbl">Swap turn with another RN</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <select class="gsel" id="swapSel" style="margin-bottom:0"></select>
+      <button class="btn sm" onclick="swapRn()" title="Trade groups and list positions — the two RNs exchange turns, nobody else moves">Swap</button>
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:1rem;line-height:var(--lh-normal)">The two trade groups and places in the list, so they take each other's night and weekend turns. Everyone else keeps their turn.</div>
     <div class="mactions" style="justify-content:space-between">
       <button class="btn danger" onclick="removeRN(mEditIdx)" title="Remove this RN from the roster">Delete RN</button>
       <span style="display:flex;gap:8px">
@@ -1760,7 +1766,9 @@ function moveInOrder(from,to){
   const before=snapshot();
   const o=[...order],[m]=o.splice(from,1);o.splice(to,0,m);order=o;
   pushHistory(`Reordered ${names[m]} in the list`,before);
-  renderTable();saveState();
+  // the list order drives the night and weekend turns, so the schedule has to be
+  // rebuilt here — redrawing alone would leave the grid disagreeing with the turn
+  render();saveState();
 }
 // move the RN currently open in the editor up/down one position in the list
 function moveRn(delta){
@@ -2028,7 +2036,27 @@ function openNameM(i){
   mEditIdx=i;
   document.getElementById('nInput').value=names[i];
   document.getElementById('gSel').value=groups[i];
+  // swap partner list, in display order, other RNs first from the opposite group
+  normalizeOrder();
+  const sel=document.getElementById('swapSel');
+  const opts=order.filter(x=>x!==i)
+    .sort((a,b)=>(groups[a]===groups[i]?1:0)-(groups[b]===groups[i]?1:0));
+  sel.innerHTML=opts.map(x=>`<option value="${x}">${escapeHtml(names[x])} · ${groups[x]}</option>`).join('');
   document.getElementById('nameModal').classList.add('open');
+}
+// Trade two RNs' groups AND list positions, so they take each other's night and
+// weekend turns while everyone else's turn is untouched.
+function swapRn(){
+  const j=+document.getElementById('swapSel').value;
+  if(mEditIdx===null||!Number.isInteger(j)||j===mEditIdx)return;
+  const i=mEditIdx,before=snapshot();
+  const pi=order.indexOf(i),pj=order.indexOf(j);
+  if(pi<0||pj<0)return;
+  [groups[i],groups[j]]=[groups[j],groups[i]];      // trade groups
+  [order[pi],order[pj]]=[order[pj],order[pi]];      // trade places in the list
+  pushHistory(`Swapped ${names[i]} ↔ ${names[j]} (groups and turn)`,before);
+  closeNameM();render();saveState();
+  toast(`${names[i]} and ${names[j]} swapped turns`);
 }
 function saveName(){
   const n=document.getElementById('nInput').value.trim();
@@ -2041,7 +2069,7 @@ function saveName(){
     pushHistory('RN '+parts.join(', '),b);
     names[mEditIdx]=n;groups[mEditIdx]=g;
   }
-  closeNameM();render();
+  closeNameM();render();saveState();   // persist + sync (rendering no longer saves)
 }
 function closeNameM(){document.getElementById('nameModal').classList.remove('open');}
 
