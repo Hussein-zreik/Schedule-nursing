@@ -276,7 +276,23 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .gsel{width:100%;background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);padding:8px 10px;font-size:var(--fs-sm);color:var(--text);font-family:var(--font-sans);outline:none;margin-bottom:var(--sp-4)}
 .slbl{font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600}
 .tracker-section{margin-top:var(--sp-6)}
-.tracker-title{font-size:var(--fs-base);font-weight:600;color:var(--text-2);margin-bottom:var(--sp-3);letter-spacing:-0.01em;display:flex;align-items:center;gap:6px}
+.tracker-title{font-size:var(--fs-base);font-weight:600;color:var(--text-2);margin-bottom:var(--sp-3);letter-spacing:-0.01em;display:flex;align-items:center;gap:6px;
+  background:none;border:none;padding:6px 8px 6px 0;cursor:pointer;font-family:var(--font-sans);width:100%;text-align:left;border-radius:var(--r-sm)}
+.tracker-title:hover{color:var(--text-strong)}
+.tracker-title .chev{margin-left:auto;transition:transform .18s;color:var(--muted-2)}
+.tracker-count{font-size:var(--fs-xs);font-weight:400;color:var(--muted-2);font-family:var(--font-mono)}
+/* collapsed: hide the table + note, point the chevron right */
+.tracker-section.collapsed .tracker-wrap,.tracker-section.collapsed .tracker-note{display:none}
+.tracker-section.collapsed .tracker-title .chev{transform:rotate(-90deg)}
+/* support-staff groups (nurse aids / orderlies / clerks) — separate from the RN rules */
+tbody tr.grp-row td{background:var(--panel-2);border-top:1px solid var(--border-2);border-bottom:1px solid var(--border-2);
+  padding:7px 12px;text-align:left;font-size:var(--fs-xs);font-weight:600;color:var(--text-2);
+  text-transform:uppercase;letter-spacing:0.06em}
+tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);border-right:1px solid var(--border)}
+.staff-name{background:transparent;border:1px solid transparent;border-radius:var(--r-sm);padding:3px 6px;width:100%;max-width:132px;
+  color:var(--text-2);font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:500;outline:none}
+.staff-name:hover{border-color:var(--border-2)}
+.staff-name:focus{border-color:var(--border-3);background:var(--field)}
 .tracker-wrap{border-radius:var(--r-lg);border:1px solid var(--border);overflow:auto;background:var(--grid-bg);contain:paint;box-shadow:var(--sh-1)}
 .tracker-wrap table{min-width:640px;width:100%}
 .tracker-wrap thead th{background:var(--panel);border-bottom:1px solid var(--border-2);padding:9px 12px;font-size:var(--fs-xs);font-weight:600;color:var(--muted-2);text-align:center;text-transform:uppercase;letter-spacing:0.04em}
@@ -487,12 +503,14 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
   <div class="tbl-wrap"><table id="tbl"></table></div>
 </div>
 
-<div class="tracker-section">
-  <div class="tracker-title">
+<div class="tracker-section" id="trackerSection">
+  <button class="tracker-title" id="trackerToggle" onclick="toggleTracker()" aria-expanded="true" aria-controls="trackerBody" title="Show or hide the balances table">
     <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
     Holiday &amp; Vacation balances
-  </div>
-  <div class="tracker-wrap"><table id="trackerTbl"></table></div>
+    <span class="tracker-count" id="trackerCount"></span>
+    <svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <div class="tracker-wrap" id="trackerBody"><table id="trackerTbl"></table></div>
   <div class="tracker-note">Balances are editable. Used counts update automatically as Hol / Vac are assigned in the schedule above.</div>
 </div>
 </div>
@@ -694,6 +712,30 @@ function ensureIds(){
 }
 const rid=i=>ids[i];                       // row index -> stable id
 function idxOfId(id){return ids.indexOf(id);}  // stable id -> row index (-1 if gone)
+
+/* ---------- support staff (nurse aids / orderlies / clerks) ----------
+   Deliberately SEPARATE from the RN roster: they are not part of `names`,
+   never enter computeSchedule, and none of the RN rules (exactly-7, daily
+   minimums, night rotation, weekend structure, <=3 consecutive) apply to them.
+   Each group stands on its own so its own rules can be added later. For now
+   their cells are free-form manual entry. */
+const STAFF_GROUPS=[
+  {key:'AIDE',label:'Nurse Aids',single:'Nurse Aid',count:2},
+  {key:'ORD', label:'Orderlies', single:'Orderly',  count:4},
+  {key:'CLK', label:'Clerks',    single:'Clerk',    count:4}
+];
+let staff=[];        // [{id, g, name}] — id is stable, like the RN ids
+let staffShifts={};  // { 'YYYY-MM-DD': { staffId: shift } } — manual entries only
+function ensureStaff(){
+  if(!Array.isArray(staff))staff=[];
+  staff=staff.filter(s=>s&&typeof s==='object'&&STAFF_GROUPS.some(g=>g.key===s.g));
+  for(const g of STAFF_GROUPS){
+    const have=staff.filter(s=>s.g===g.key);
+    for(let i=have.length;i<g.count;i++)
+      staff.push({id:g.key.toLowerCase()+i,g:g.key,name:`${g.single} ${i+1}`});
+  }
+}
+const staffOf=gk=>staff.filter(s=>s.g===gk);
 function syncN(){N=names.length;} // roster size follows the names array
 function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
   if(!Array.isArray(order))order=[];
@@ -705,21 +747,22 @@ function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
 let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
 let theme='dark';
+let trackerOpen=true;   // Holiday/Vacation panel expanded? (per-device UI preference)
 let overrides={}; // { 'YYYY-MM-DD': { rnIndex: shift } }
 let manualMode=false;      // when true, fortnights start empty and are filled on Generate
 let committedCycles={};    // { 'YYYY-MM-DD'(cycle Monday): true } — which fortnights have been generated
 let cycleSeeds={};         // { 'YYYY-MM-DD'(cycle Monday): seed } — per-fortnight seed so generating one doesn't reshuffle others
 let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
-let mRn=null,mDay=null,mSel=null,mEditIdx=null;
+let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null;
 const HIST_MAX=100;
 
 /* ---------- persistence ---------- */
 function saveState(){
   try{
     localStorage.setItem(STORE_KEY,JSON.stringify({
-      names,groups,holBal,vacBal,order,ids,seed,
+      names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,overrides,history,manualMode,committedCycles,cycleSeeds
+      theme,trackerOpen,overrides,history,manualMode,committedCycles,cycleSeeds
     }));
   }catch(e){/* storage unavailable */}
   if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
@@ -746,6 +789,9 @@ function applyStateObject(s){
   if(typeof s.manualMode==='boolean')manualMode=s.manualMode;
   if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
+  if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
+  if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;
+  ensureStaff();
   syncN();
   // ids + one-time migration of index-keyed requests to id-keyed
   const hadIds=Array.isArray(s.ids)&&s.ids.length>0;
@@ -770,7 +816,7 @@ function migrateOverridesToIds(){
 }
 // shared data pushed to the cloud (theme stays local)
 function cloudStateObj(){
-  return {names,groups,holBal,vacBal,order,ids,seed,
+  return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
     overrides,history,manualMode,committedCycles,cycleSeeds};
 }
@@ -781,6 +827,7 @@ function loadState(){
     const s=JSON.parse(raw);
     applyStateObject(s);
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
+    if(typeof s.trackerOpen==='boolean')trackerOpen=s.trackerOpen;
   }catch(e){/* ignore corrupt state */}
 }
 
@@ -916,7 +963,8 @@ lockEl('pw1').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDef
 /* ---------- change memory (history + undo) ---------- */
 function snapshot(){
   return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],order:[...order],
-          ids:[...ids],seed,overrides:JSON.parse(JSON.stringify(overrides))};
+          ids:[...ids],seed,overrides:JSON.parse(JSON.stringify(overrides)),
+          staff:JSON.parse(JSON.stringify(staff)),staffShifts:JSON.parse(JSON.stringify(staffShifts))};
 }
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
@@ -924,6 +972,9 @@ function restore(s){
   order=Array.isArray(s.order)?[...s.order]:[];
   syncN();
   ids=Array.isArray(s.ids)?[...s.ids]:[];ensureIds();
+  if(Array.isArray(s.staff))staff=JSON.parse(JSON.stringify(s.staff));
+  if(s.staffShifts)staffShifts=JSON.parse(JSON.stringify(s.staffShifts));
+  ensureStaff();
   normalizeOrder();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
@@ -1394,7 +1445,24 @@ function renderTable(){
 
   h+='<tr class="count-row"><td class="lbl-c">Total per day</td>';
   for(let d=0;d<14;d++){h+=`<td class="tot-c">${Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length}</td>`;}
-  h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr></tbody>';
+  h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
+
+  // ----- support staff: one block per group, independent of every RN rule -----
+  ensureStaff();
+  for(const g of STAFF_GROUPS){
+    h+=`<tr class="grp-row"><td class="grp-lbl">${escapeHtml(g.label)}</td><td colspan="16"></td></tr>`;
+    for(const p of staffOf(g.key)){
+      h+=`<tr><td class="rn-col"><input class="staff-name" value="${escapeHtml(p.name)}" onchange="setStaffName('${p.id}',this.value)" aria-label="Name"></td>`;
+      let w1=0,w2=0;
+      for(let d=0;d<14;d++){
+        const s=staffShiftAt(p.id,days[d]);
+        if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
+        h+=`<td onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+      }
+      h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
+    }
+  }
+  h+='</tbody>';
 
   document.getElementById('tbl').innerHTML=h;
 
@@ -1498,6 +1566,32 @@ function renderTracker(){
 }
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ---------- support staff helpers ---------- */
+function staffShiftAt(id,dateObj){const o=staffShifts[isoKey(dateObj)];return (o&&o[id])||'OFF';}
+function setStaffName(id,v){
+  const p=staff.find(x=>x.id===id);if(!p)return;
+  const nv=String(v).trim().slice(0,40)||p.name;
+  if(nv===p.name)return;
+  const b=snapshot();pushHistory(`Renamed ${p.name} → ${nv}`,b);
+  p.name=nv;renderTable();saveState();
+}
+function setStaffShift(id,dateObj,type){
+  const k=isoKey(dateObj);
+  if(type==='OFF'){ if(staffShifts[k]){delete staffShifts[k][id];if(!Object.keys(staffShifts[k]).length)delete staffShifts[k];} }
+  else{ if(!staffShifts[k])staffShifts[k]={}; staffShifts[k][id]=type; }
+}
+
+/* ---------- collapsible Holiday / Vacation panel ---------- */
+function applyTrackerState(){
+  const sec=document.getElementById('trackerSection'),btn=document.getElementById('trackerToggle');
+  if(!sec||!btn)return;
+  sec.classList.toggle('collapsed',!trackerOpen);
+  btn.setAttribute('aria-expanded',trackerOpen?'true':'false');
+  const c=document.getElementById('trackerCount');
+  if(c)c.textContent=trackerOpen?'':`(${N} RNs — click to show)`;
+}
+function toggleTracker(){trackerOpen=!trackerOpen;applyTrackerState();saveState();}
 function setHolBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===holBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Hol balance ${holBal[i]} → ${nv}`,b);holBal[i]=nv;renderTracker();saveState();}
 function setVacBal(i,v){const nv=Math.max(0,parseInt(v)||0);if(nv===vacBal[i])return;const b=snapshot();pushHistory(`${names[i]}: Vac balance ${vacBal[i]} → ${nv}`,b);vacBal[i]=nv;renderTracker();saveState();}
 
@@ -1665,7 +1759,7 @@ function reqClearAll(){
   render();saveState();renderRequests();toast('All requests cleared');
 }
 
-function render(){buildSchedule();renderTable();updateModeUI();}
+function render(){buildSchedule();renderTable();updateModeUI();applyTrackerState();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
@@ -1751,6 +1845,7 @@ document.getElementById('startDate').addEventListener('change',function(){
 
 /* ---------- cell / name edit ---------- */
 function openCellM(ri,di){
+  mStaffId=null;
   mRn=ri;mDay=di;mSel=sched.sh[ri][di];
   document.getElementById('mTitle').textContent=`${names[ri]} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
   document.getElementById('mOpts').innerHTML=ALL_TYPES.map(s=>`<button class="mbtn${mSel===s?' sel':''}" data-s="${s}" onclick="pickSh('${s}')">${LABELS_M[s]}</button>`).join('');
@@ -1759,8 +1854,28 @@ function openCellM(ri,di){
   document.getElementById('resetCellBtn').style.display=hasEntry?'':'none';
   document.getElementById('cellModal').classList.add('open');
 }
+// support-staff cell: same picker, but written to staffShifts (no RN rules involved)
+function openStaffCellM(id,di){
+  const p=staff.find(x=>x.id===id);if(!p)return;
+  mStaffId=id;mRn=null;mDay=di;mSel=staffShiftAt(id,sched.days[di]);
+  document.getElementById('mTitle').textContent=`${p.name} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
+  document.getElementById('mOpts').innerHTML=ALL_TYPES.map(s=>`<button class="mbtn${mSel===s?' sel':''}" data-s="${s}" onclick="pickSh('${s}')">${LABELS_M[s]}</button>`).join('');
+  document.getElementById('resetCellBtn').style.display='none';   // staff cells are already manual
+  document.getElementById('cellModal').classList.add('open');
+}
 function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
 function saveCell(){
+  if(mStaffId!==null&&mDay!==null){          // support-staff cell
+    const p=staff.find(x=>x.id===mStaffId);
+    const old=staffShiftAt(mStaffId,sched.days[mDay]);
+    if(old!==mSel){
+      const b=snapshot();
+      pushHistory(`${p?p.name:'Staff'} · ${DAYS[mDay%7]} ${fmt(sched.days[mDay])}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`,b);
+      setStaffShift(mStaffId,sched.days[mDay],mSel);
+    }
+    closeCell();renderTable();saveState();   // staff rows don't affect the RN schedule
+    return;
+  }
   if(mRn!==null&&mDay!==null){
     const old=sched.sh[mRn][mDay];
     if(old!==mSel){
@@ -1845,6 +1960,17 @@ function exportRows(){
   }
   dayRow.push('','','');ngtRow.push('','','');totRow.push('','','');
   rows.push([]);rows.push(dayRow);rows.push(ngtRow);rows.push(totRow);
+  // support-staff groups (their own sections, no RN rules)
+  ensureStaff();
+  for(const g of STAFF_GROUPS){
+    rows.push([]);rows.push([g.label]);
+    for(const p of staffOf(g.key)){
+      let w1=0,w2=0;const cells=[];
+      for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
+        if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'':s);}
+      rows.push([p.name,'',...cells,w1,w2,w1+w2]);
+    }
+  }
   return {rows,weekStart};
 }
 function trackerRows(){
@@ -2051,6 +2177,20 @@ function exportPDF(){
     dayRow.push('','','');ngtRow.push('','','');totRow.push('','','');
     body.push(dayRow,ngtRow,totRow);
     const firstCountRow=N;
+    // support-staff groups appended as their own labelled sections
+    ensureStaff();
+    const staffRowIdx=new Set(),groupRowIdx=new Set();
+    for(const g of STAFF_GROUPS){
+      groupRowIdx.add(body.length);
+      body.push([g.label,...Array(16).fill('')]);
+      for(const p of staffOf(g.key)){
+        let w1=0,w2=0;const cells=[];
+        for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
+          if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'':s);}
+        staffRowIdx.add(body.length);
+        body.push([p.name,'',...cells,w1,w2,w1+w2]);
+      }
+    }
     doc.autoTable({
       head,body,startY:50,margin:{left:20,right:20},
       styles:{fontSize:8,halign:'center',valign:'middle',cellPadding:3,lineColor:PDF_T.line,lineWidth:0.4,textColor:PDF_T.ink},
@@ -2058,9 +2198,20 @@ function exportPDF(){
       columnStyles:{0:{halign:'left',cellWidth:72,fontStyle:'bold'},1:{cellWidth:22}},
       didParseCell:(data)=>{
         const r=data.row.index,c=data.column.index;
-        if(data.section==='body'&&r>=firstCountRow){data.cell.styles.fillColor=[238,240,244];data.cell.styles.textColor=[75,83,95];data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';}
-        else if(data.section==='body'&&c>=2&&c<=15){const col=PDF_COL[data.cell.raw];if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}
-        else if(data.section==='body'&&c>=16){data.cell.styles.fillColor=[238,240,244];data.cell.styles.fontStyle='bold';}
+        if(data.section!=='body')return;
+        if(groupRowIdx.has(r)){                       // staff group heading
+          data.cell.styles.fillColor=[226,230,237];data.cell.styles.textColor=[45,54,68];
+          data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';return;
+        }
+        const isStaff=staffRowIdx.has(r);
+        if(r>=firstCountRow&&!isStaff){               // the three per-day count rows
+          data.cell.styles.fillColor=[238,240,244];data.cell.styles.textColor=[75,83,95];
+          data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';
+        }
+        else if(c>=2&&c<=15){const col=PDF_COL[data.cell.raw];
+          if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}
+        else if(c>=16){data.cell.styles.fillColor=[238,240,244];data.cell.styles.fontStyle='bold';}
+        if(isStaff&&c===0)data.cell.styles.halign='left';
       }
     });
 
@@ -2298,7 +2449,7 @@ function downloadFairnessPDF(){
 
 /* ---------- init ---------- */
 loadState();
-syncN();ensureIds();   // fresh installs (no saved state) still need stable ids
+syncN();ensureIds();ensureStaff();   // fresh installs (no saved state) still need stable ids + staff rows
 applyTheme();
 lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it
