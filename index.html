@@ -2372,6 +2372,38 @@ async function exportExcel(){
       [dayR,ngtR,totR].forEach(r=>{const c=ws.getCell(r,3+d);c.alignment={horizontal:'center'};
         c.fill=solid(P.count);c.font={color:{argb:P.countFg},size:10};c.border=allBorder;});
     }
+    // ===== support-staff groups (Nurse Aids, Orderlies, Clerks) =====
+    // appended below the RN block, each group under its own labelled band, with
+    // live W1/W2/Total formulas like the RN rows. Manual entries only.
+    ensureStaff();
+    let sr=totR+2;   // one blank row after the per-day count rows
+    for(const g of STAFF_GROUPS){
+      const gc=ws.getCell(sr,1);gc.value=g.label;ws.mergeCells(sr,1,sr,2);
+      gc.fill=solid(P.header);gc.font={bold:true,size:10,color:{argb:P.headerFg}};
+      gc.alignment={horizontal:'left'};gc.border=allBorder;
+      for(let c=3;c<=NC;c++){const cell=ws.getCell(sr,c);cell.fill=solid(P.header);cell.border=allBorder;}
+      sr++;
+      for(const p of staffOf(g.key)){
+        const nameC=ws.getCell(sr,1);nameC.value=p.name;nameC.fill=solid(P.grid);
+        nameC.font={color:{argb:P.gridFg},bold:true,size:11};nameC.border=allBorder;
+        const grpC=ws.getCell(sr,2);grpC.value='';grpC.fill=solid(P.grid);grpC.border=allBorder;
+        for(let d=0;d<14;d++){
+          const s=staffShiftAt(p.id,days[d]);
+          const cell=ws.getCell(sr,3+d);
+          cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
+          const sc=P.S[s];
+          if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
+          else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
+        }
+        const w1r=`COUNTA(C${sr}:I${sr})-COUNTIF(C${sr}:I${sr},"REQ")`;
+        const w2r=`COUNTA(J${sr}:P${sr})-COUNTIF(J${sr}:P${sr},"REQ")`;
+        [['Q',w1r],['R',w2r],['S',`Q${sr}+R${sr}`]].forEach(([col,f],k)=>{
+          const cell=ws.getCell(sr,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
+          cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
+        });
+        sr++;
+      }
+    }
     // column widths
     ws.getColumn(1).width=15;ws.getColumn(2).width=7;
     for(let d=0;d<14;d++)ws.getColumn(3+d).width=8;
