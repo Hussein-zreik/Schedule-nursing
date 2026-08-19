@@ -826,7 +826,9 @@ function applyStateObject(s){
   if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
   if(Array.isArray(s.history))history=s.history;
   if(Array.isArray(s.order))order=s.order.slice();
-  if(typeof s.manualMode==='boolean')manualMode=s.manualMode;
+  // manualMode is deliberately NOT taken from incoming state: it is a per-device
+  // workflow choice (like the theme). A colleague's device still in Auto used to
+  // flip this device back to Auto mid-schedule. Only loadState() restores it.
   if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
   if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
@@ -858,7 +860,7 @@ function migrateOverridesToIds(){
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,history,manualMode,committedCycles,cycleSeeds};
+    overrides,history,committedCycles,cycleSeeds};   // NOTE: manualMode is per-device (see applyStateObject)
 }
 function loadState(){
   try{
@@ -869,6 +871,7 @@ function loadState(){
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
     if(typeof s.trackerOpen==='boolean')trackerOpen=s.trackerOpen;
     if(typeof s.cycInfoOpen==='boolean')cycInfoOpen=s.cycInfoOpen;
+    if(typeof s.manualMode==='boolean')manualMode=s.manualMode;   // per-device
   }catch(e){/* ignore corrupt state */}
 }
 
@@ -1186,7 +1189,7 @@ function turnFor(off){
    and every day meets DAILY_MIN whenever the roster has the capacity. */
 // pure: compute the schedule for a given cycle offset, without touching globals.
 // used both for the live view and to build cross-cycle monthly reports.
-function computeSchedule(off,applyBoundary=true){
+function computeSchedule(off,applyBoundary=true,forceFill=false){
   syncN();
   const si=document.getElementById('startDate').value;
   const wStart=getMonday(si?new Date(si):new Date());
@@ -1210,8 +1213,16 @@ function computeSchedule(off,applyBoundary=true){
   // it committed. Per-fortnight seed so generating one fortnight never reshuffles
   // another. In Auto mode this is skipped entirely (identical to before).
   const gk=isoKey(base);
-  if(manualMode&&!committedCycles[gk])return {days:days14,sh,weekStart:base};
-  const eSeed=(manualMode&&cycleSeeds[gk]!==undefined)?cycleSeeds[gk]:seed;
+  // forceFill: used by the boundary lookback below, which must always see the
+  // previous fortnight's real pattern. Without it, Manual mode read a BLANK
+  // previous cycle, so the post-night / post-weekend rest days were never
+  // applied and the whole weekday spread differed from Auto for the same days.
+  if(manualMode&&!forceFill&&!committedCycles[gk])return {days:days14,sh,weekStart:base};
+  // Once a fortnight has been generated its own seed is recorded, and it is used
+  // from then on in BOTH modes — otherwise a device in Auto would rebuild that
+  // same fortnight from the global seed and show different duties to a device in
+  // Manual for the very same days.
+  const eSeed=(cycleSeeds[gk]!==undefined)?cycleSeeds[gk]:seed;
 
   // group membership is dynamic (any roster size / split).
   // Walk the roster in the on-screen LIST order (the `order` permutation) so the
@@ -1250,7 +1261,7 @@ function computeSchedule(off,applyBoundary=true){
   // 'RST' is a rest placeholder the assigner treats as unavailable; it's cleared
   // to a plain day off before display. Skip anyone on nights again this cycle.
   if(applyBoundary){
-    const prev=computeSchedule(off-1,false).sh;   // false -> no boundary recursion (depth 1)
+    const prev=computeSchedule(off-1,false,true).sh;   // no recursion, and always filled
     for(let i=0;i<N;i++){
       if(nightSet.has(i)||i>=prev.length)continue;
       const p=prev[i];
@@ -1281,7 +1292,11 @@ function computeSchedule(off,applyBoundary=true){
     }
     // Saturday extra (S10) — random in Auto mode, left for you in Manual mode.
     // Seeded from the cycle so it is stable and identical on every device.
-    if(!manualMode){
+    // Keyed to the SCHEDULE, not to this device's mode: a fortnight you built
+    // deliberately with Generate leaves the extra to you, and an auto-filled one
+    // gets a random pick. If it depended on the device's mode, a phone in Auto
+    // and a PC in Manual would show different Saturdays for the same days.
+    if(!committedCycles[gk]){
       for(const w of [0,1]){
         const satD=w*7+5;
         if(cnt(satD,'S10')>=1)continue;               // a request already covers it

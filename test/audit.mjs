@@ -85,6 +85,72 @@ check('Saturday = 2x D7 + 1x S10',                  reg.satStruct === 0,   reg.s
 check('Sunday = 2x D7',                             reg.sunStruct === 0,   reg.sunStruct + ' weekends wrong');
 check('no day below minimum staffing',              reg.belowMin === 0,    reg.belowMin + ' shortfalls');
 
+/* ---------------- 1b. per-group week split and night counts ---------------- */
+const split = await page.evaluate(({ SEEDS, CYCLES }) => {
+  const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
+  manualMode = false; overrides = {}; committedCycles = {}; cycleSeeds = {};
+  const r = { split43: 0, nightNot7: 0 };
+  for (let s = 0; s < Math.min(SEEDS, 40); s++) {
+    seed = (s * 2654435761) >>> 0;
+    for (let off = 0; off < Math.min(CYCLES, 12); off++) {
+      const sh = computeSchedule(off).sh;
+      for (let i = 0; i < sh.length; i++) {
+        const nights = sh[i].filter(x => x === 'N7').length;
+        if (nights > 0) { if (nights !== 7) r.nightNot7++; continue; }
+        // day nurses: Group A works 4 then 3, Group B works 3 then 4
+        const w1 = sh[i].slice(0, 7).filter(x => WORK.has(x)).length;
+        const w2 = sh[i].slice(7, 14).filter(x => WORK.has(x)).length;
+        const want = groups[i] === 'A' ? [4, 3] : [3, 4];
+        if (w1 !== want[0] || w2 !== want[1]) r.split43++;
+      }
+    }
+  }
+  return r;
+}, { SEEDS, CYCLES });
+console.log('\n--- per-group week split ---');
+check('Group A works 4 then 3, Group B 3 then 4', split.split43 === 0, split.split43 + ' nurses wrong');
+check('every night nurse works exactly 7 nights', split.nightNot7 === 0, split.nightNot7 + ' wrong');
+
+/* ---------------- 1c. Manual mode behaves like Manual mode ---------------- */
+const manual = await page.evaluate(() => {
+  const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
+  const trail = r => { let c=0; for (let d=13; d>=0 && WORK.has(r[d]); d--) c++; return c; };
+  const lead  = r => { let c=0; for (let d=0; d<14 && WORK.has(r[d]); d++) c++; return c; };
+  overrides = {}; seed = 4242;
+  // a generated fortnight must look the same to a device in Auto
+  let identical = 0, total = 0;
+  for (let off = 0; off < 5; off++) {
+    manualMode = true; committedCycles = {}; cycleSeeds = {}; cycleOffset = off; render(); generateFortnight();
+    const m = JSON.stringify(sched.sh);
+    manualMode = false; render();
+    total++; if (m === JSON.stringify(sched.sh)) identical++;
+  }
+  // the seam rule must hold in Manual mode too
+  manualMode = true; committedCycles = {}; cycleSeeds = {};
+  for (let off = 0; off < 6; off++) { cycleOffset = off; render(); generateFortnight(); }
+  let seam = 0;
+  for (let off = 0; off < 5; off++) {
+    const A = computeSchedule(off).sh, B = computeSchedule(off + 1).sh;
+    for (let i = 0; i < A.length; i++) { const t = trail(A[i]), l = lead(B[i]); if (t > 0 && l > 0 && t + l > 3) seam++; }
+  }
+  // an ungenerated fortnight stays blank
+  cycleOffset = 40; render();
+  const blank = sched.sh.reduce((a, r) => a + r.filter(x => x !== 'OFF').length, 0);
+  // a remote push from a device still in Auto must not flip this device
+  manualMode = true;
+  applyStateObject({ names:[...names], groups:[...groups], holBal:[...holBal], vacBal:[...vacBal],
+    order:[...order], ids:[...ids], seed:1, startDate:startDateStr, overrides:{}, history:[],
+    manualMode:false, committedCycles:{}, cycleSeeds:{} });
+  const stillManual = manualMode;
+  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; cycleOffset = 0; render();
+  return { identical, total, seam, blank, stillManual };
+});
+console.log('\n--- Manual mode ---');
+check('generated fortnight matches what an Auto device shows', manual.identical === manual.total, manual.identical + '/' + manual.total);
+check('<=3 across the cycle seam holds in Manual too', manual.seam === 0, manual.seam + ' violations');
+check('an ungenerated fortnight stays blank', manual.blank === 0, manual.blank + ' filled cells');
+check('a synced Auto device cannot flip this one to Auto', manual.stillManual === true);
+
 /* ---------------- 2. requests must not break the rules ---------------- */
 const scen = await page.evaluate((NS) => {
   const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
