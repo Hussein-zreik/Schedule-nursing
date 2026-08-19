@@ -296,6 +296,8 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .req-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
 .req-row:hover{background:var(--row-hover)}
 .req-row .rr-rn{font-weight:600;color:var(--text);min-width:100px}
+.req-row .rr-tag{font-weight:500;font-size:var(--fs-xs);font-family:var(--font-mono);color:var(--muted-3);
+  border:1px solid var(--border-2);border-radius:var(--r-sm);padding:0 5px;margin-left:5px;vertical-align:middle}
 .req-row .rr-date{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted-2);font-size:var(--fs-xs)}
 .req-row .rr-badge{margin-left:auto;padding:3px 8px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:600;font-family:var(--font-mono)}
 .req-row .rr-del{cursor:pointer;color:var(--neg);font-size:var(--fs-md);line-height:1;padding:0 4px;border:none;background:none}
@@ -651,7 +653,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     </div>
     <div class="req-form">
       <div class="req-line">
-        <label class="req-lbl">Nurse
+        <label class="req-lbl">Nurse / staff
           <select id="reqRn" class="req-sel"></select>
         </label>
         <label class="req-lbl">Request
@@ -1971,42 +1973,58 @@ function reqCycle(delta){reqOffset+=delta;reqSelDays=new Set();renderRequests();
 function reqToggleDay(d){if(reqSelDays.has(d))reqSelDays.delete(d);else reqSelDays.add(d);reqRenderDays();}
 function reqRenderDays(){
   const days=reqDates();normalizeOrder();
-  const rn=+document.getElementById('reqRn').value;
+  const who=reqSel();
   let h='';
   for(let d=0;d<14;d++){
+    const iso=isoKey(days[d]);
     const wknd=(d%7)>=5?' wknd':'';
-    const has=overrides[isoKey(days[d])]&&overrides[isoKey(days[d])][rid(rn)]!==undefined?' has-req':'';
+    const exists=who.staff
+      ? (staffShifts[iso]&&staffShifts[iso][who.id]!==undefined)
+      : (overrides[iso]&&overrides[iso][rid(who.rn)]!==undefined);
+    const has=exists?' has-req':'';
     const sel=reqSelDays.has(d)?' sel':'';
-    h+=`<div class="req-day${wknd}${sel}${has}" onclick="reqToggleDay(${d})" title="${has?'already has a request for this nurse':''}">
+    h+=`<div class="req-day${wknd}${sel}${has}" onclick="reqToggleDay(${d})" title="${has?'already has a request for this person':''}">
         <div class="rd-dn">${DAYS[d%7]}</div><div class="rd-dt">${fmt(days[d])}</div></div>`;
   }
   document.getElementById('reqDays').innerHTML=h;
 }
+// parse the person dropdown: RN options carry a numeric value, support-staff
+// options carry "s:<staffId>". Returns a uniform descriptor for both.
+function reqSel(){
+  const v=document.getElementById('reqRn').value;
+  if(v&&v.slice(0,2)==='s:'){const id=v.slice(2);const p=staff.find(x=>x.id===id);return {staff:true,id,name:p?p.name:'Staff'};}
+  const rn=+v;return {staff:false,rn,name:names[rn]};
+}
 function renderRequests(){
-  normalizeOrder();
+  normalizeOrder();ensureStaff();
   const days=reqDates();
   document.getElementById('reqCycLabel').textContent=`${fmt(days[0])} – ${fmt(days[13])}`;
-  // nurse dropdown (display order)
+  // person dropdown: RNs first (display order), then each support-staff group
   const rnSel=document.getElementById('reqRn');
   const cur=rnSel.value;
-  rnSel.innerHTML=order.map(i=>`<option value="${i}">${escapeHtml(names[i])} · ${groups[i]}</option>`).join('');
-  if(cur&&order.includes(+cur))rnSel.value=cur;
+  let opts=`<optgroup label="RNs">`+order.map(i=>`<option value="${i}">${escapeHtml(names[i])} · ${groups[i]}</option>`).join('')+`</optgroup>`;
+  for(const g of STAFF_GROUPS){
+    opts+=`<optgroup label="${escapeHtml(g.label)}">`+staffOf(g.key).map(p=>`<option value="s:${p.id}">${escapeHtml(p.name)}</option>`).join('')+`</optgroup>`;
+  }
+  rnSel.innerHTML=opts;
+  if(cur&&[...rnSel.options].some(o=>o.value===cur))rnSel.value=cur;
   rnSel.onchange=reqRenderDays;
   // type dropdown
   document.getElementById('reqType').innerHTML=REQ_TYPES.map(t=>`<option value="${t}">${LABELS_M[t]}</option>`).join('');
   reqRenderDays();
-  // logged requests list (all dates, sorted)
+  // logged requests list (RN overrides + support-staff assignments), all dates, sorted
   const items=[];
-  for(const k in overrides)for(const key in overrides[k]){const i=idxOfId(key);if(i>=0)items.push({k,i,id:key,t:overrides[k][key]});}
-  items.sort((a,b)=>a.k<b.k?-1:a.k>b.k?1:a.i-b.i);
+  for(const k in overrides)for(const key in overrides[k]){const i=idxOfId(key);if(i>=0)items.push({k,id:key,t:overrides[k][key],name:names[i],sort:i,staff:false});}
+  for(const k in staffShifts)for(const id in staffShifts[k]){const p=staff.find(x=>x.id===id);items.push({k,id,t:staffShifts[k][id],name:p?p.name:id,sort:1000,staff:true});}
+  items.sort((a,b)=>a.k<b.k?-1:a.k>b.k?1:a.sort-b.sort);
   document.getElementById('reqCount').textContent=items.length?`(${items.length})`:'';
   const box=document.getElementById('reqList');
-  if(!items.length){box.innerHTML='<div class="req-empty">No requests yet. Pick a nurse, a request type, and the day(s) above, then “Add request”.</div>';}
+  if(!items.length){box.innerHTML='<div class="req-empty">No requests yet. Pick a nurse or staff member, a request type, and the day(s) above, then “Add request”.</div>';}
   else{
     box.innerHTML=items.map(it=>{
       const dt=new Date(it.k+'T00:00:00');
       const lbl=isNaN(dt)?it.k:`${DAYS[(dt.getDay()+6)%7]} ${fmt(dt)} ${dt.getFullYear()}`;
-      return `<div class="req-row"><span class="rr-rn">${escapeHtml(names[it.i])}</span>`+
+      return `<div class="req-row"><span class="rr-rn">${escapeHtml(it.name)}${it.staff?' <span class="rr-tag">staff</span>':''}</span>`+
         `<span class="rr-date">${lbl}</span>`+
         `<span class="rr-badge b-${it.t}">${it.t==='REQ'?'Req off':it.t}</span>`+
         `<button class="rr-del" title="Delete this request" onclick="reqDelete('${it.k}','${it.id}')">✕</button></div>`;
@@ -2014,29 +2032,44 @@ function renderRequests(){
   }
 }
 function reqAdd(){
-  const rn=+document.getElementById('reqRn').value, type=document.getElementById('reqType').value;
+  const who=reqSel(), type=document.getElementById('reqType').value;
   const msg=document.getElementById('reqAddMsg');
   if(!reqSelDays.size){msg.textContent='Pick at least one day.';return;}
+  if(who.staff&&(type==='OFF')){msg.textContent='Support staff are off by default — pick a shift (or Vac/Hol).';return;}
   const days=reqDates(),before=snapshot();
   let n=0;
-  for(const d of reqSelDays){const k=isoKey(days[d]);if(!overrides[k])overrides[k]={};overrides[k][rid(rn)]=type;n++;}
-  pushHistory(`Request: ${names[rn]} · ${type==='REQ'?'Req off':type} × ${n} day${n>1?'s':''}`,before);
+  for(const d of reqSelDays){
+    if(who.staff){setStaffShift(who.id,days[d],type);}
+    else{const k=isoKey(days[d]);if(!overrides[k])overrides[k]={};overrides[k][rid(who.rn)]=type;}
+    n++;
+  }
+  pushHistory(`Request: ${who.name} · ${type==='REQ'?'Req off':type} × ${n} day${n>1?'s':''}`,before);
   reqSelDays=new Set();
   render();saveState();renderRequests();
   msg.textContent=`Added ${n} — schedule updated.`;
   setTimeout(()=>{msg.textContent='';},2600);
 }
 function reqDelete(k,id){
-  if(!overrides[k]||overrides[k][id]===undefined)return;
-  const before=snapshot();
-  const i=idxOfId(id),who=i>=0?names[i]:'RN';
-  delete overrides[k][id];if(!Object.keys(overrides[k]).length)delete overrides[k];
-  pushHistory(`Removed request: ${who} · ${k}`,before);
+  const p=staff.find(x=>x.id===id);
+  if(p){
+    if(!staffShifts[k]||staffShifts[k][id]===undefined)return;
+    const before=snapshot();
+    delete staffShifts[k][id];if(!Object.keys(staffShifts[k]).length)delete staffShifts[k];
+    pushHistory(`Removed request: ${p.name} · ${k}`,before);
+  }else{
+    if(!overrides[k]||overrides[k][id]===undefined)return;
+    const before=snapshot();
+    const i=idxOfId(id),who=i>=0?names[i]:'RN';
+    delete overrides[k][id];if(!Object.keys(overrides[k]).length)delete overrides[k];
+    pushHistory(`Removed request: ${who} · ${k}`,before);
+  }
   render();saveState();renderRequests();
 }
 function reqClearAll(){
-  if(!Object.keys(overrides).length){toast('No requests to clear');return;}
-  const before=snapshot();overrides={};
+  const hasO=Object.keys(overrides).length,hasS=Object.keys(staffShifts).length;
+  if(!hasO&&!hasS){toast('No requests to clear');return;}
+  if(!confirm('Clear all requests and support-staff assignments?'))return;
+  const before=snapshot();overrides={};staffShifts={};
   pushHistory('Cleared all requests',before);
   render();saveState();renderRequests();toast('All requests cleared');
 }
