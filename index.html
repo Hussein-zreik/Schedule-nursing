@@ -274,6 +274,10 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
   padding:1px 5px;font-size:var(--fs-sm);line-height:1.3}
 .sett-btn:hover{background:var(--field-2);color:var(--text-strong);border-color:var(--border-2)}
 .sett-btn.del:hover{color:var(--neg)}
+.sett-btn.swap:hover{color:var(--accent)}
+.sett-btn.swap.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sett-row.is-swap{outline:2px solid var(--accent);outline-offset:-1px}
+.sett-swaphint{font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:var(--sp-3)}
 .req-form{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-4);background:var(--panel-2)}
 .req-line{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:10px}
 .req-lbl{font-size:var(--fs-xs);color:var(--muted-2);display:flex;flex-direction:column;gap:5px;font-family:var(--font-sans);font-weight:500;flex:1;min-width:150px}
@@ -624,6 +628,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
       <span class="sett-cyc" id="settCyc">—</span>
     </div>
     <div class="sett-note">The turn belongs to the <b>slot</b>, not the person. Slot 1 &amp; 2 take nights, slot 3 &amp; 4 take the weekend, then it moves down each cycle. Move an RN and they take that slot's turn.</div>
+    <div class="sett-swaphint" id="settSwapHint"></div>
     <div class="sett-grid" id="settBody"></div>
     <div class="mactions" style="margin-top:1rem;justify-content:space-between">
       <span style="display:flex;gap:8px">
@@ -1725,25 +1730,32 @@ function settApply(a,b,label){
   pushHistory(label,before);
   render();saveState();renderSettings();
 }
-function openSettings(){renderSettings();document.getElementById('settModal').classList.add('open');}
-function closeSettings(){document.getElementById('settModal').classList.remove('open');}
+function openSettings(){settSwapArm=null;renderSettings();document.getElementById('settModal').classList.add('open');}
+function closeSettings(){settSwapArm=null;document.getElementById('settModal').classList.remove('open');}
+let settSwapArm=null;   // index of the RN armed for a swap (two-tap), or null
 function renderSettings(){
   const box=document.getElementById('settBody');if(!box)return;
   const {a,b}=settLists();
   const T=turnFor(cycleOffset);
   const lbl=document.getElementById('settCyc');
   if(lbl)lbl.textContent=`cycle ${cycleOffset} · ${fmt(sched.days[0])} – ${fmt(sched.days[13])}`;
+  const hint=document.getElementById('settSwapHint');
+  if(hint)hint.textContent=settSwapArm!=null
+    ? `Swapping ${names[settSwapArm]} — tap ⇄ on another RN to trade turns, or tap it again to cancel.`
+    : 'Tap ⇄ on two RNs to swap their turns (they trade group + slot; everyone else stays put).';
   const col=(list,gk,other)=>{
     let h=`<div class="sett-col"><h4><span style="color:var(--grp${gk})">■</span> Group ${gk} <span style="font-weight:400;color:var(--muted-3)">(${list.length})</span></h4>`;
     if(!list.length)h+='<div class="req-empty">No RNs in this group.</div>';
     list.forEach((i,pos)=>{
       const night=(gk==='A'?T.nightA:T.nightB).includes(i);
       const wknd=(gk==='A'?T.wkndA:T.wkndB).includes(i);
-      const cls=night?' is-night':(wknd?' is-wknd':'');
+      const armed=settSwapArm===i;
+      const cls=(night?' is-night':(wknd?' is-wknd':''))+(armed?' is-swap':'');
       const tag=night?'<span class="sett-tag">nights</span>':(wknd?'<span class="sett-tag">weekend</span>':'');
       h+=`<div class="sett-row${cls}">
         <span class="sett-slot">${pos+1}</span>
         <span class="sett-nm">${escapeHtml(names[i])}</span>${tag}
+        <button class="sett-btn swap${armed?' on':''}" onclick="settSwap(${i})" title="${armed?'Cancel swap':'Swap turn with another RN'}">⇄</button>
         <button class="sett-btn" onclick="settMove(${i},-1)" title="Move up a slot"${pos===0?' disabled style="opacity:.3"':''}>▲</button>
         <button class="sett-btn" onclick="settMove(${i},1)" title="Move down a slot"${pos===list.length-1?' disabled style="opacity:.3"':''}>▼</button>
         <button class="sett-btn" onclick="settToGroup(${i},'${other}')" title="Move to Group ${other}">${gk==='A'?'→':'←'}</button>
@@ -1753,6 +1765,22 @@ function renderSettings(){
     return h+'</div>';
   };
   box.innerHTML=(col(a,'A','B')+col(b,'B','A'));
+}
+// Two-tap swap from the Settings panel: first tap arms an RN, second tap on a
+// different RN trades their groups AND list positions (same as swapRn), so the
+// two exchange night/weekend turns while everyone else is untouched.
+function settSwap(i){
+  if(settSwapArm===null){settSwapArm=i;renderSettings();return;}
+  if(settSwapArm===i){settSwapArm=null;renderSettings();return;}   // tap again to cancel
+  const j=settSwapArm;settSwapArm=null;
+  const before=snapshot();
+  const pi=order.indexOf(i),pj=order.indexOf(j);
+  if(pi<0||pj<0){renderSettings();return;}
+  [groups[i],groups[j]]=[groups[j],groups[i]];      // trade groups
+  [order[pi],order[pj]]=[order[pj],order[pi]];      // trade places in the list
+  pushHistory(`Swapped ${names[i]} ↔ ${names[j]} (groups and turn)`,before);
+  render();saveState();renderSettings();
+  toast(`${names[i]} and ${names[j]} swapped turns`);
 }
 function settMove(i,delta){
   const {a,b}=settLists();
