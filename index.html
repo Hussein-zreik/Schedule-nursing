@@ -891,7 +891,9 @@ function applyStateObject(s){
   if(typeof s.seed==='number')seed=s.seed;
   if(typeof s.startDate==='string')startDateStr=s.startDate;
   if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
-  if(Array.isArray(s.history))history=s.history;
+  // history is NOT taken from incoming state: it is a per-device undo stack and
+  // is no longer synced (see cloudStateObj). Only loadState() restores it, from
+  // this device's own localStorage — a cloud snapshot never overwrites it.
   if(Array.isArray(s.order))order=s.order.slice();
   // manualMode is deliberately NOT taken from incoming state: it is a per-device
   // workflow choice (like the theme). A colleague's device still in Auto used to
@@ -923,11 +925,15 @@ function migrateOverridesToIds(){
   }
   overrides=out;
 }
-// shared data pushed to the cloud (theme stays local)
+// shared data pushed to the cloud. NOTE: history and manualMode are per-device
+// (see applyStateObject/loadState). The change-history is deliberately NOT
+// synced — it is each device's own undo stack, and shipping up to 100 full
+// state snapshots would bloat the Firestore document past its 1 MiB limit and
+// re-upload the whole log on every edit.
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,history,committedCycles,cycleSeeds};   // NOTE: manualMode is per-device (see applyStateObject)
+    overrides,committedCycles,cycleSeeds};
 }
 function loadState(){
   try{
@@ -935,6 +941,7 @@ function loadState(){
     if(!raw)return;
     const s=JSON.parse(raw);
     applyStateObject(s);
+    if(Array.isArray(s.history))history=s.history;                // per-device undo stack
     if(s.theme==='light'||s.theme==='dark')theme=s.theme;
     if(typeof s.trackerOpen==='boolean')trackerOpen=s.trackerOpen;
     if(typeof s.cycInfoOpen==='boolean')cycInfoOpen=s.cycInfoOpen;
