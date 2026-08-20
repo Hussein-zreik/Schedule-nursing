@@ -33,6 +33,7 @@
   --grpA:#60a5fa;--grpB:#4ade80;
   --warn:#e0a020;--neg:#f0605f;
   --row-hover:#1a1f28;
+  --today-bg:rgba(122,184,245,0.10);--today-line:#6aa9ff;
   --grid-bg:#0f1218;
   --shadow:0 12px 40px rgba(0,0,0,.55);
   --d6-bg:#12263d;--d6-fg:#7ab8f5;--d6-bd:#1e3f63;
@@ -57,6 +58,7 @@
   --grpA:#1560b4;--grpB:#157a43;
   --warn:#8a5200;--neg:#bd2b2b;
   --row-hover:#f1f4f8;
+  --today-bg:rgba(21,96,180,0.08);--today-line:#1560b4;
   --grid-bg:#ffffff;
   --sh-1:0 1px 2px rgba(20,30,50,.10);--sh-2:0 12px 40px rgba(20,30,50,.20);
   --focus:#1560b4;
@@ -181,6 +183,13 @@ thead tr th .ddate{font-size:var(--fs-xs);color:var(--muted-3);font-family:var(-
 thead tr th.wk1{border-top:2px solid #1a3050}
 thead tr th.wk2{border-top:2px solid #1a3020}
 thead tr th.wknd{color:var(--muted-3)}
+/* "today" column: a soft tint down the column + an accent bar on its header,
+   shown only when the cycle on screen contains today (see renderTable) */
+thead tr th.is-today{background:var(--today-bg);box-shadow:inset 0 3px 0 0 var(--today-line)}
+thead tr th.is-today .dname,thead tr th.is-today .ddate{color:var(--today-line)}
+.today-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--today-line);margin-top:1px}
+tbody tr td.is-today{background:var(--today-bg)}
+tbody tr:hover td.is-today{background:var(--today-bg)}
 tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s}
 tbody tr:hover{background:var(--row-hover)}
 tbody tr td{padding:6px 8px;text-align:center;vertical-align:middle}
@@ -1554,6 +1563,11 @@ function dayShort(sh,d){ // is this day below minimum on any type?
 
 function renderTable(){
   const{days,sh,weekStart}=sched;
+  // which column (if any) is the real calendar "today" — only set when the
+  // cycle on screen actually contains today, so the highlight self-hides.
+  const todayKey=isoKey(new Date());
+  let todayIdx=-1;for(let d=0;d<14;d++)if(isoKey(days[d])===todayKey){todayIdx=d;break;}
+  const T=d=>d===todayIdx?' is-today':'';
   document.getElementById('weekLabel').textContent=`Cycle ${cycleOffset} · ${fmt(weekStart)} – ${fmt(addDays(weekStart,13))}`;
   // print-only line: which cycle this sheet covers and when it was produced
   const pm=document.getElementById('printMeta');
@@ -1563,7 +1577,7 @@ function renderTable(){
   // the date field holds the ANCHOR (cycle-0 Monday); leave it as-is while browsing
 
   let h='<thead><tr><th class="rn-h">RN</th>';
-  for(let d=0;d<14;d++){const wknd=(d%7)>=5?' wknd':'';h+=`<th class="${d<7?'wk1':'wk2'}${wknd}"><div class="dname">${DAYS[d%7]}</div><div class="ddate">${fmt(days[d])}</div></th>`;}
+  for(let d=0;d<14;d++){const wknd=(d%7)>=5?' wknd':'';h+=`<th class="${d<7?'wk1':'wk2'}${wknd}${T(d)}"><div class="dname">${DAYS[d%7]}</div><div class="ddate">${fmt(days[d])}${d===todayIdx?'<div class="today-tag">today</div>':''}</div></th>`;}
   h+='<th class="sep" style="font-size:10px;min-width:30px">W1</th><th class="sep" style="font-size:10px;min-width:30px">W2</th><th class="sep" style="font-size:10px;min-width:36px">Total</th></tr></thead><tbody>';
 
   let allOk=true;
@@ -1577,20 +1591,20 @@ function renderTable(){
     if(!ok)allOk=false;
     const wc=ok?'wk-ok':'wk-warn';
     h+=`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,${pos})"><td class="rn-col"><span class="drag-h" draggable="true" ondragstart="rowDragStart(event,${pos})" ondragend="rowDragEnd()" title="Drag to reorder">⠿</span><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
-    for(let d=0;d<14;d++){const s=sh[i][d];h+=`<td onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+    for(let d=0;d<14;d++){const s=sh[i][d];h+=`<td class="${T(d).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
   });
 
   h+='<tr class="count-row"><td class="lbl-c">Day shifts</td>';
-  for(let d=0;d<14;d++){const c=Array.from({length:N},(_,i)=>i).filter(i=>DAY_SHIFT_TYPES.includes(sh[i][d])).length;h+=`<td class="day-c${dayShort(sh,d)?' short':''}">${c}</td>`;}
+  for(let d=0;d<14;d++){const c=Array.from({length:N},(_,i)=>i).filter(i=>DAY_SHIFT_TYPES.includes(sh[i][d])).length;h+=`<td class="day-c${dayShort(sh,d)?' short':''}${T(d)}">${c}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Night shifts</td>';
-  for(let d=0;d<14;d++){h+=`<td class="ngt-c">${dayTypeCount(sh,d,'N7')}</td>`;}
+  for(let d=0;d<14;d++){h+=`<td class="ngt-c${T(d)}">${dayTypeCount(sh,d,'N7')}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Total per day</td>';
-  for(let d=0;d<14;d++){h+=`<td class="tot-c">${Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length}</td>`;}
+  for(let d=0;d<14;d++){h+=`<td class="tot-c${T(d)}">${Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   // ----- support staff: one block per group, independent of every RN rule -----
@@ -1603,7 +1617,7 @@ function renderTable(){
       for(let d=0;d<14;d++){
         const s=staffShiftAt(p.id,days[d]);
         if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
-        h+=`<td onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+        h+=`<td class="${T(d).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
       }
       h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
     }
