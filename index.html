@@ -40,6 +40,8 @@
   --s8-bg:#122a18;--s8-fg:#6dd48a;--s8-bd:#1e4527;
   --s9-bg:#102415;--s9-fg:#5cc47a;--s9-bd:#1a3a22;
   --s10-bg:#2a1c05;--s10-fg:#e0a638;--s10-bd:#453009;
+  --e10-bg:#0c2a2a;--e10-fg:#5fcfc4;--e10-bd:#14494a;
+  --s11-bg:#16193a;--s11-fg:#8f9cf0;--s11-bd:#262c5a;
   --n7-bg:#231436;--n7-fg:#b394ec;--n7-bd:#39204f;
   --hol-bg:#331214;--hol-fg:#f28585;--hol-bd:#5e2224;
   --vac-bg:#0f2434;--vac-fg:#7fd0f2;--vac-bd:#1c4a66;
@@ -64,6 +66,8 @@
   --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
   --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
   --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
+  --e10-bg:#a8dede;--e10-fg:#0c4a4a;--e10-bd:#7ec9c9;
+  --s11-bg:#b6bdf7;--s11-fg:#26307a;--s11-bd:#8c96e8;
   --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
   --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
   --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
@@ -113,6 +117,8 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-S8{background:var(--s8-bg);color:var(--s8-fg);border-color:var(--s8-bd)}
 .b-S9{background:var(--s9-bg);color:var(--s9-fg);border-color:var(--s9-bd)}
 .b-S10{background:var(--s10-bg);color:var(--s10-fg);border-color:var(--s10-bd)}
+.b-E10{background:var(--e10-bg);color:var(--e10-fg);border-color:var(--e10-bd)}
+.b-S11{background:var(--s11-bg);color:var(--s11-fg);border-color:var(--s11-bd)}
 .b-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .b-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
@@ -196,6 +202,8 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .sc.s-S8{background:var(--s8-bg);color:var(--s8-fg);border-color:var(--s8-bd)}
 .sc.s-S9{background:var(--s9-bg);color:var(--s9-fg);border-color:var(--s9-bd)}
 .sc.s-S10{background:var(--s10-bg);color:var(--s10-fg);border-color:var(--s10-bd)}
+.sc.s-E10{background:var(--e10-bg);color:var(--e10-fg);border-color:var(--e10-bd)}
+.sc.s-S11{background:var(--s11-bg);color:var(--s11-fg);border-color:var(--s11-bd)}
 .sc.s-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .sc.s-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .sc.s-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
@@ -312,6 +320,8 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .mbtn[data-s=HOL].sel{border-color:var(--hol-bd);background:var(--hol-bg);color:var(--hol-fg)}
 .mbtn[data-s=VAC].sel{border-color:var(--vac-bd);background:var(--vac-bg);color:var(--vac-fg)}
 .mbtn[data-s=REQ].sel{border-color:var(--req-bd);background:var(--req-bg);color:var(--req-fg)}
+.mbtn[data-s=E10].sel{border-color:var(--e10-bd);background:var(--e10-bg);color:var(--e10-fg)}
+.mbtn[data-s=S11].sel{border-color:var(--s11-bd);background:var(--s11-bg);color:var(--s11-fg)}
 .mbtn[data-s=N7].sel{border-color:var(--n7-bd);background:var(--n7-bg);color:var(--n7-fg)}
 .mbtn[data-s=OFF].sel{border-color:var(--border-3);background:var(--field-2);color:var(--muted)}
 .mactions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
@@ -397,6 +407,8 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
     --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
     --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
+    --e10-bg:#a8dede;--e10-fg:#0c4a4a;--e10-bd:#7ec9c9;
+    --s11-bg:#b6bdf7;--s11-fg:#26307a;--s11-bd:#8c96e8;
     --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
     --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
     --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
@@ -534,6 +546,8 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <span class="leg"><span class="leg-badge b-S8">S8</span>Eve 8</span>
   <span class="leg"><span class="leg-badge b-S9">S9</span>Eve 9</span>
   <span class="leg"><span class="leg-badge b-S10">S10</span>Eve 10</span>
+  <span class="leg"><span class="leg-badge b-E10">E10</span>10a–6p</span>
+  <span class="leg"><span class="leg-badge b-S11">S11</span>11a–11p</span>
   <span class="leg"><span class="leg-badge b-N7">N7</span>Night</span>
   <span class="leg"><span class="leg-badge b-HOL">Hol</span>Holiday</span>
   <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
@@ -760,11 +774,14 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 
 <script>
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const DAY_TYPES=['D6','D7','S8','S9','S10'];
-const ALL_TYPES=['D6','D7','S8','S9','S10','N7','HOL','VAC','REQ','OFF'];
-const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','N7']); // actual working shifts (drives scheduling)
-const ENTRY_TYPES=new Set(['D6','D7','S8','S9','S10','N7','HOL','VAC']); // scheduled entries incl. holiday/vacation (drives W1/W2/Total counts)
-const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
+const DAY_TYPES=['D6','D7','S8','S9','S10'];   // pool the auto-generator fills from
+// E10 (10a-6p) and S11 (11a-11p) are extra day/evening shifts placed by hand or
+// by request — not part of the auto rotation, but they count as working shifts.
+const DAY_SHIFT_TYPES=['D6','D7','S8','S9','S10','E10','S11']; // all non-night work (for the "Day shifts" tally)
+const ALL_TYPES=['D6','D7','S8','S9','S10','E10','S11','N7','HOL','VAC','REQ','OFF'];
+const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','E10','S11','N7']); // actual working shifts (drives scheduling)
+const ENTRY_TYPES=new Set(['D6','D7','S8','S9','S10','E10','S11','N7','HOL','VAC']); // scheduled entries incl. holiday/vacation (drives W1/W2/Total counts)
+const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',E10:'E10 · 10a–6p',S11:'S11 · 11a–11p',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
 const DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}
@@ -1558,7 +1575,7 @@ function renderTable(){
   });
 
   h+='<tr class="count-row"><td class="lbl-c">Day shifts</td>';
-  for(let d=0;d<14;d++){const c=Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length;h+=`<td class="day-c${dayShort(sh,d)?' short':''}">${c}</td>`;}
+  for(let d=0;d<14;d++){const c=Array.from({length:N},(_,i)=>i).filter(i=>DAY_SHIFT_TYPES.includes(sh[i][d])).length;h+=`<td class="day-c${dayShort(sh,d)?' short':''}">${c}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Night shifts</td>';
@@ -1984,7 +2001,7 @@ function autoOffset(anchorISO,today){
 /* ---------- requests (locked duties / offs / vacations) ---------- */
 let reqOffset=0;                 // which fortnight the modal is showing
 let reqSelDays=new Set();        // day-indexes (0-13) selected for the new request
-const REQ_TYPES=['D6','D7','S8','S9','S10','N7','REQ','OFF','VAC','HOL'];
+const REQ_TYPES=['D6','D7','S8','S9','S10','E10','S11','N7','REQ','OFF','VAC','HOL'];
 function reqDates(){
   const si=document.getElementById('startDate').value;
   const base=addDays(getMonday(si?new Date(si):new Date()),reqOffset*14);
@@ -2335,7 +2352,7 @@ function exportRows(){
   }
   const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total per day',''];
   for(let d=0;d<14;d++){
-    dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length);
+    dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_SHIFT_TYPES.includes(sh[i][d])).length);
     ngtRow.push(dayTypeCount(sh,d,'N7'));
     totRow.push(Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length);
   }
@@ -2372,7 +2389,8 @@ const XL_PAL={
     title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
     S:{D6:['FFDBEAFB','FF12558F'],D7:['FFE0EDFD','FF175E9E'],S8:['FFD9EFD9','FF1A7233'],
-       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],N7:['FFE9DDF8','FF623AB4'],
+       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],E10:['FFCDECEC','FF0C4A4A'],
+       S11:['FFDDE1FB','FF26307A'],N7:['FFE9DDF8','FF623AB4'],
        HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1'],REQ:['FFFBE0F0','FFB03A80']}
   },
   dark:{
@@ -2380,7 +2398,8 @@ const XL_PAL={
     title:'FF0A0A0A',titleFg:'FFF0EDE8',count:'FF0D0D0D',countFg:'FF8A8A8A',
     border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
     S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
-       S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
+       S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],E10:['FF0C2A2A','FF5FCFC4'],
+       S11:['FF16193A','FF8F9CF0'],N7:['FF1A0A2E','FFA07DE0'],
        HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0'],REQ:['FF2A0A1E','FFE07DBF']}
   }
 };
@@ -2444,7 +2463,7 @@ async function exportExcel(){
     label(dayR,'Day shifts');label(ngtR,'Night shifts');label(totR,'Total per day');
     for(let d=0;d<14;d++){
       const L=colL(3+d);
-      const dayF=DAY_TYPES.map(t=>`COUNTIF(${L}3:${L}${2+N},"${t}")`).join('+');
+      const dayF=DAY_SHIFT_TYPES.map(t=>`COUNTIF(${L}3:${L}${2+N},"${t}")`).join('+');
       ws.getCell(dayR,3+d).value={formula:dayF};
       ws.getCell(ngtR,3+d).value={formula:`COUNTIF(${L}3:${L}${2+N},"N7")`};
       ws.getCell(totR,3+d).value={formula:`${L}${dayR}+${L}${ngtR}`};
@@ -2550,7 +2569,8 @@ function downloadBlob(blob,name){
 const PDF_COL={
   D6:[[169,208,245],[12,69,118]],D7:[[182,216,247],[14,78,130]],
   S8:[[168,221,168],[20,91,40]],S9:[[180,224,176],[26,95,35]],
-  S10:[[242,207,133],[106,66,0]],N7:[[205,180,239],[74,42,144]],
+  S10:[[242,207,133],[106,66,0]],E10:[[168,222,222],[12,74,74]],
+  S11:[[182,189,247],[38,48,122]],N7:[[205,180,239],[74,42,144]],
   HOL:[[243,180,180],[146,31,31]],VAC:[[169,216,242],[10,85,127]],
   REQ:[[243,182,218],[138,43,98]]
 };
@@ -2583,7 +2603,7 @@ function exportPDF(){
     }
     const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total/day',''];
     for(let d=0;d<14;d++){
-      dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_TYPES.includes(sh[i][d])).length);
+      dayRow.push(Array.from({length:N},(_,i)=>i).filter(i=>DAY_SHIFT_TYPES.includes(sh[i][d])).length);
       ngtRow.push(dayTypeCount(sh,d,'N7'));
       totRow.push(Array.from({length:N},(_,i)=>i).filter(i=>WORK_TYPES.has(sh[i][d])).length);
     }
