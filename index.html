@@ -99,6 +99,12 @@ input[type=date]:focus{border-color:var(--border-3)}
 .btn:hover{background:var(--field-2);color:var(--text-strong);border-color:var(--border-3)}
 .btn:active{transform:translateY(1px)}
 .btn:disabled,.btn.is-disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+/* Auto | Manual segmented control — shows the active mode at a glance */
+.segmented{display:inline-flex;height:32px;border:1px solid var(--border-3);border-radius:var(--r-sm);background:var(--field);overflow:hidden}
+.seg{border:none;background:transparent;color:var(--muted);font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:500;padding:0 13px;cursor:pointer;display:inline-flex;align-items:center;transition:background .12s,color .12s}
+.seg+.seg{border-left:1px solid var(--border-2)}
+.seg:hover{color:var(--text-strong)}
+.seg.active{background:var(--accent-bg);color:var(--accent);font-weight:600}
 .btn.icon-only{padding:0 9px}
 .btn.icon-only svg.ic{width:16px;height:16px}
 /* hierarchy: primary = filled, ghost = quiet tool button */
@@ -504,9 +510,10 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
         </button>
       </span>
       <span class="divider"></span>
-      <button class="btn" id="modeBtn" onclick="toggleMode()" title="Switch between Auto (always filled) and Manual (start empty, generate on demand)">
-        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span id="modeLbl">Auto mode</span>
-      </button>
+      <div class="segmented" id="modeSeg" role="group" aria-label="Schedule mode">
+        <button class="seg" id="segAuto" onclick="setMode(false)" aria-pressed="true" title="Auto: every fortnight is always filled automatically">Auto</button>
+        <button class="seg" id="segManual" onclick="setMode(true)" aria-pressed="false" title="Manual: fortnights start empty; add requests, then Generate">Manual</button>
+      </div>
       <button class="btn primary" id="regenBtn" onclick="regen()" title="Generate a new random schedule">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"/></svg>Regenerate
       </button>
@@ -2214,12 +2221,15 @@ function importBackup(input){
 /* ---------- Auto / Manual mode ---------- */
 // ISO date of a cycle's start Monday — the key for committed fortnights / seeds
 function cycleStartISO(off){const si=document.getElementById('startDate').value;return isoKey(addDays(getMonday(si?new Date(si):new Date()),off*14));}
-function toggleMode(){
-  manualMode=!manualMode;
+// set the mode explicitly from the Auto|Manual segmented control
+function setMode(manual){
+  if(manualMode===manual)return;                 // already there — no-op
+  manualMode=manual;
   render();saveState();
   toast(manualMode?'Manual mode — fortnights start empty; add requests, then Generate'
                   :'Auto mode — the schedule fills automatically');
 }
+function toggleMode(){setMode(!manualMode);}     // kept for any existing callers
 function generateFortnight(){
   const gk=cycleStartISO(cycleOffset),before=snapshot();
   cycleSeeds[gk]=(Date.now()^Math.floor(Math.random()*1e9))>>>0;  // fresh seed for THIS fortnight only
@@ -2239,7 +2249,8 @@ function updateModeUI(){
   const on=manualMode,committed=on&&!!committedCycles[cycleStartISO(cycleOffset)];
   const set=(id,txt)=>{const e=document.getElementById(id);if(e&&txt!=null)e.textContent=txt;};
   const show=(id,v)=>{const e=document.getElementById(id);if(e)e.style.display=v?'':'none';};
-  set('modeLbl',on?'Manual mode':'Auto mode');
+  const seg=(id,active)=>{const e=document.getElementById(id);if(e){e.classList.toggle('active',active);e.setAttribute('aria-pressed',active?'true':'false');}};
+  seg('segAuto',!on);seg('segManual',on);
   show('regenBtn',!on);                // Auto: normal Regenerate
   show('genBtn',on);                   // Manual: Generate (or Regenerate this fortnight)
   show('clearFnBtn',on&&committed);    // Manual + generated: Clear back to empty
