@@ -295,6 +295,7 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .req-count{font-size:var(--fs-xs);color:var(--muted-2);font-weight:400;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 .req-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
 .req-row:hover{background:var(--row-hover)}
+#reqAddMsg.req-warn{color:var(--warn)!important;font-weight:500}
 .req-row .rr-rn{font-weight:600;color:var(--text);min-width:100px}
 .req-row .rr-tag{font-weight:500;font-size:var(--fs-xs);font-family:var(--font-mono);color:var(--muted-3);
   border:1px solid var(--border-2);border-radius:var(--r-sm);padding:0 5px;margin-left:5px;vertical-align:middle}
@@ -1609,6 +1610,25 @@ function renderTable(){
   // overwrite an edit made elsewhere. Every mutating action saves explicitly.
 }
 
+// Which nurses are off their exact-7 count, and which nights aren't covered by
+// exactly two RNs — named, with a flag for anyone on the night turn. Nights are
+// fully manual and never auto-adjusted, so a request or manual edit that lands
+// on a night-turn nurse is the usual cause of an 8-shift (day request on top of
+// their 7 nights) or 6-shift / short-night (off on a night day). This detects
+// it so it can be surfaced instead of silently breaking the schedule.
+function conflictReport(off,sh){
+  const T=turnFor(off);
+  const nightSet=new Set([...T.nightA,...T.nightB]);
+  const over=[],under=[],nightsShort=[],nightsOver=[];
+  for(let i=0;i<N;i++){
+    const tot=sh[i].filter(s=>ENTRY_TYPES.has(s)).length;
+    if(tot===7)continue;
+    (tot>7?over:under).push({i,tot,onNight:nightSet.has(i)});
+  }
+  for(let d=0;d<14;d++){let c=0;for(let i=0;i<N;i++)if(sh[i][d]==='N7')c++;
+    if(c<2)nightsShort.push({d,c});else if(c>2)nightsOver.push({d,c});}
+  return {over,under,nightsShort,nightsOver,nightSet};
+}
 // live health-check banner: watches the current schedule (including manual
 // edits) and surfaces staffing-rule problems that aren't otherwise obvious.
 // Display only — it never changes the schedule.
@@ -1625,16 +1645,18 @@ function renderBanner(){
   // 1) days below minimum staffing (any shift type under DAILY_MIN)
   const short=[];
   for(let d=0;d<14;d++)if(dayShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
-  // 2) nurses whose 2-week working total isn't 7
-  let notSeven=0;
-  for(let i=0;i<N;i++)if(sh[i].filter(s=>ENTRY_TYPES.has(s)).length!==7)notSeven++;
+  // 2) exact-7 breaks, named + flagged when the nurse is on the night turn
+  const cr=conflictReport(cycleOffset,sh);
+  const nm=i=>escapeHtml(names[i]);
+  const overNames=cr.over.map(o=>`${nm(o.i)} (${o.tot}${o.onNight?', nights':''})`);
+  const underNames=cr.under.map(o=>`${nm(o.i)} (${o.tot}${o.onNight?', nights':''})`);
+  const notSeven=cr.over.length+cr.under.length;
+  const nightTurnClash=cr.over.some(o=>o.onNight)||cr.under.some(o=>o.onNight);
   // 3) nurses working more than 3 days in a row
   let longRuns=0;
   for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
-  // 4) nights not covered by 2 RNs (nights are manual — you fill these yourself)
-  const nightGaps=[];
-  for(let d=0;d<14;d++){let c=0;for(let i=0;i<N;i++)if(sh[i][d]==='N7')c++;
-    if(c!==2)nightGaps.push(`${DAYS[d%7]} ${fmt(days[d])} (${c})`);}
+  // 4) nights not covered by exactly 2 RNs (nights are manual — you fill these)
+  const nightGaps=[...cr.nightsShort,...cr.nightsOver].map(x=>`${DAYS[x.d%7]} ${fmt(days[x.d])} (${x.c})`);
 
   if(!short.length&&!notSeven&&!longRuns&&!nightGaps.length){
     el.className='banner ok';
@@ -1644,11 +1666,13 @@ function renderBanner(){
   const parts=[];
   if(nightGaps.length)parts.push(`<b>${nightGaps.length}</b> night${nightGaps.length>1?'s':''} not covered by 2 RNs (${nightGaps.join(', ')})`);
   if(short.length)parts.push(`<b>${short.length}</b> day${short.length>1?'s':''} below minimum staffing (${short.join(', ')})`);
-  if(notSeven)parts.push(`<b>${notSeven}</b> nurse${notSeven>1?'s':''} not at 7 shifts`);
+  if(overNames.length)parts.push(`<b>${overNames.length}</b> over 7 shifts: ${overNames.join(', ')}`);
+  if(underNames.length)parts.push(`<b>${underNames.length}</b> under 7 shifts: ${underNames.join(', ')}`);
   if(longRuns)parts.push(`<b>${longRuns}</b> nurse${longRuns>1?'s':''} working 4+ days in a row`);
   const level=(short.length||notSeven||nightGaps.length)?'bad':'warn';
   let hint='';
-  if(nightGaps.length)hint='<div class="bhint">Nights are manual: assign a replacement yourself by clicking the night cell.</div>';
+  if(nightTurnClash)hint='<div class="bhint">A named nurse above is on the <b>night turn</b> this fortnight and has a request or manual entry that collides with their 7 nights — a day shift pushes them over 7, and an off (or other) on a night day leaves that night short. Remove it in <b>Requests</b>, or fix the night cells by hand.</div>';
+  else if(nightGaps.length)hint='<div class="bhint">Nights are manual: assign a replacement yourself by clicking the night cell.</div>';
   else if(short.length){
     // the commonest case in Manual mode: the Saturday extra is yours to place
     const satOnly=short.every(x=>x.startsWith('Sat'));
@@ -2046,8 +2070,21 @@ function reqAdd(){
   pushHistory(`Request: ${who.name} · ${type==='REQ'?'Req off':type} × ${n} day${n>1?'s':''}`,before);
   reqSelDays=new Set();
   render();saveState();renderRequests();
-  msg.textContent=`Added ${n} — schedule updated.`;
-  setTimeout(()=>{msg.textContent='';},2600);
+  // Warn (don't block) when an RN request collides with the fixed night turn.
+  // forceFill so the check is meaningful even for an ungenerated Manual fortnight.
+  let warn='';
+  if(!who.staff){
+    const {sh}=computeSchedule(reqOffset,true,true);
+    const cr=conflictReport(reqOffset,sh);
+    const meOver=cr.over.find(o=>o.i===who.rn),meUnder=cr.under.find(o=>o.i===who.rn);
+    if(meOver&&meOver.onNight)warn=`  ⚠ ${who.name} is on the night turn this fortnight — now ${meOver.tot} shifts. Saved; remove the request or fix the night cells by hand.`;
+    else if(meUnder&&meUnder.onNight)warn=`  ⚠ ${who.name} is on the night turn and now has ${meUnder.tot} shifts — a night may be left short.`;
+    else if(meOver)warn=`  ⚠ ${who.name} is now at ${meOver.tot} shifts.`;
+    else if(cr.nightsShort.length||cr.nightsOver.length)warn='  ⚠ A night is no longer covered by exactly 2 RNs — see the banner.';
+  }
+  msg.textContent=`Added ${n} — schedule updated.`+warn;
+  msg.classList.toggle('req-warn',!!warn);
+  setTimeout(()=>{msg.textContent='';msg.classList.remove('req-warn');},warn?7000:2600);
 }
 function reqDelete(k,id){
   const p=staff.find(x=>x.id===id);
@@ -2203,7 +2240,17 @@ function saveCell(){
       if(!overrides[k])overrides[k]={}; overrides[k][rid(mRn)]=mSel;
     }
   }
+  const edited=mRn;
   closeCell();render();saveState();   // rebuild so the rest of the schedule adapts around the locked cell
+  warnCellConflict(edited);           // warn (don't block) if this edit breaks the 7-count
+}
+// after a manual RN edit, toast if that nurse is no longer at 7 — the common
+// cause is editing a night-turn nurse (nights are fixed, so a day edit → 8).
+function warnCellConflict(i){
+  if(i==null||!sched)return;
+  const cr=conflictReport(cycleOffset,sched.sh);
+  const o=cr.over.find(x=>x.i===i)||cr.under.find(x=>x.i===i);
+  if(o)toast(`⚠ ${names[i]} is now at ${o.tot} shifts${o.onNight?' — on the night turn this fortnight':''}`);
 }
 function resetCell(){ // remove a manual entry / request for this cell -> back to auto-fill
   if(mRn!==null&&mDay!==null){
