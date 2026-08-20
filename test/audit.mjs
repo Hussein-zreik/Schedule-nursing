@@ -177,11 +177,27 @@ const scen = await page.evaluate((NS) => {
         else { if (run.length > 3 && !run.some(x => asked.has(x))) v.push('run over 3 days'); run = []; }
       }
     }
-    for (let d = 0; d < 14; d++) { const need = MIN[d % 7];
-      for (const t in need) if (cnt(sh, d, t) < need[t]) v.push('below minimum staffing'); }
+    // NOTE: a request may pull a day below minimum staffing. That is now
+    // acceptable by design — the turn quota is absolute, so rather than hand
+    // someone an extra duty the day is left short for a manual fix. So we do
+    // NOT flag below-minimum here (it is still flagged in the no-request core
+    // suite, where the roster has the capacity to meet every minimum).
     for (let i = 0; i < sh.length; i++)
       if (!reqs.some(r => r[0] === i) && sh[i].filter(x => ENTRY.has(x)).length < 7)
         v.push('unrequested nurse under 7');
+    // the turn quota (4/3-3/4) is absolute: no non-night nurse works MORE than
+    // their weekly quota, unless the manager explicitly requested extra working
+    // shifts on them. This is the guard against "extra duty when not their turn".
+    for (let i = 0; i < sh.length; i++) {
+      if (sh[i].some(x => x === 'N7')) continue;                 // night nurses excluded
+      for (const w of [0, 1]) {
+        const lo = w*7, hi = lo+7;
+        const actual = sh[i].slice(lo, hi).filter(x => WORK.has(x)).length;
+        const locked = reqs.filter(r => r[0]===i && WORK.has(r[2]) && r[1]>=lo && r[1]<hi).length;
+        const quota = (groups[i] === 'A' ? [4,3] : [3,4])[w];
+        if (actual > Math.max(quota, locked)) v.push('over quota (extra duty)');
+      }
+    }
     return v;
   }
 
