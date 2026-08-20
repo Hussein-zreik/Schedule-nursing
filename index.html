@@ -92,6 +92,7 @@ input[type=date]:focus{border-color:var(--border-3)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--field);border:1px solid var(--border-3);border-radius:var(--r-sm);padding:0 12px;height:32px;font-size:var(--fs-sm);font-weight:500;cursor:pointer;color:var(--text);font-family:var(--font-sans);transition:background .15s,border-color .15s,color .15s;white-space:nowrap}
 .btn:hover{background:var(--field-2);color:var(--text-strong);border-color:var(--border-3)}
 .btn:active{transform:translateY(1px)}
+.btn:disabled,.btn.is-disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
 .btn.icon-only{padding:0 9px}
 .btn.icon-only svg.ic{width:16px;height:16px}
 /* hierarchy: primary = filled, ghost = quiet tool button */
@@ -485,6 +486,10 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
       <button class="btn" id="clearFnBtn" onclick="clearFortnight()" style="display:none" title="Clear this fortnight back to empty">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Clear
       </button>
+      <span class="divider"></span>
+      <button class="btn" id="undoBtn" onclick="undo()" title="Undo the last change (Ctrl+Z)">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg><span class="btxt">Undo</span>
+      </button>
     </div>
     <!-- row 2: tools, exports and system -->
     <div class="toolrow secondary">
@@ -502,9 +507,6 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
       </button>
       <button class="btn ghost" onclick="openHistory()" title="View change history">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v6h6M3 9a9 9 0 1 1 2 6"/><path d="M12 7v5l3 2"/></svg><span class="btxt">History</span>
-      </button>
-      <button class="btn ghost" onclick="undo()" title="Undo last change (Ctrl+Z)">
-        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg><span class="btxt">Undo</span>
       </button>
       <span class="divider"></span>
       <button class="btn ghost" onclick="exportPDF()" title="Export / print as PDF">
@@ -1056,7 +1058,11 @@ lockEl('pw1').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDef
 function snapshot(){
   return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],order:[...order],
           ids:[...ids],seed,overrides:JSON.parse(JSON.stringify(overrides)),
-          staff:JSON.parse(JSON.stringify(staff)),staffShifts:JSON.parse(JSON.stringify(staffShifts))};
+          staff:JSON.parse(JSON.stringify(staff)),staffShifts:JSON.parse(JSON.stringify(staffShifts)),
+          // Manual-mode bookkeeping — without these, undo of a Generate left the
+          // fortnight marked generated, and undo of a Clear lost its seed.
+          committedCycles:JSON.parse(JSON.stringify(committedCycles)),
+          cycleSeeds:JSON.parse(JSON.stringify(cycleSeeds))};
 }
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
@@ -1066,6 +1072,9 @@ function restore(s){
   ids=Array.isArray(s.ids)?[...s.ids]:[];ensureIds();
   if(Array.isArray(s.staff))staff=JSON.parse(JSON.stringify(s.staff));
   if(s.staffShifts)staffShifts=JSON.parse(JSON.stringify(s.staffShifts));
+  // only restore these when present, so pre-existing history entries still load
+  if(s.committedCycles)committedCycles=JSON.parse(JSON.stringify(s.committedCycles));
+  if(s.cycleSeeds)cycleSeeds=JSON.parse(JSON.stringify(s.cycleSeeds));
   ensureStaff();
   normalizeOrder();
 }
@@ -1081,7 +1090,16 @@ function undo(){
   render();saveState();
   toast('Undid: '+e.label);
 }
-function clearHistory(){history=[];saveState();renderHistory();toast('History cleared');}
+function clearHistory(){history=[];saveState();renderHistory();updateUndoUI();toast('History cleared');}
+// keep the Undo button honest: greyed when there's nothing to undo, and its
+// tooltip always names the exact step it will reverse (in any mode).
+function updateUndoUI(){
+  const b=document.getElementById('undoBtn');if(!b)return;
+  const has=history.length>0;
+  b.disabled=!has;
+  b.classList.toggle('is-disabled',!has);
+  b.title=has?`Undo: ${history[history.length-1].label} (Ctrl+Z)`:'Nothing to undo yet';
+}
 function histTime(t){
   const d=new Date(t);
   return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+
@@ -2092,7 +2110,7 @@ function reqClearAll(){
   render();saveState();renderRequests();toast('All requests cleared');
 }
 
-function render(){buildSchedule();renderTable();updateModeUI();applyTrackerState();applyCycInfoState();renderCycleInfo();}
+function render(){buildSchedule();renderTable();updateModeUI();updateUndoUI();applyTrackerState();applyCycInfoState();renderCycleInfo();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
