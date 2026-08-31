@@ -151,33 +151,34 @@ check('<=3 across the cycle seam holds in Manual too', manual.seam === 0, manual
 check('an ungenerated fortnight stays blank', manual.blank === 0, manual.blank + ' filled cells');
 check('a synced Auto device cannot flip this one to Auto', manual.stillManual === true);
 
-/* ---------------- 1d. a hand-generated fortnight: no auto nights, no weekend surplus ---------------- */
+/* ---------------- 1d. Manual mode is strictly manual: Generate auto-fills NOTHING ---------------- */
 const handGen = await page.evaluate(() => {
-  const WORK = new Set(['D6','D7','S8','S9','S10','E10','S11','N7']);
   const K = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; };
-  const cnt = (sh,d,t) => { let c=0; for (let i=0;i<sh.length;i++) if (sh[i][d]===t) c++; return c; };
   manualMode = true; committedCycles = {}; cycleSeeds = {}; overrides = {}; seed = 77; cycleOffset = 0;
   const days = computeSchedule(0, true, true).days;
-  // enter nights by hand for two nurses (idx 4 and 5) across a night pattern
+  // enter a handful of cells by hand (nights for idx 4, a day shift for idx 8)
+  const entered = new Set();
   const NA = [0,1,5,6,9,10,11];
-  for (const d of NA) { const k = K(days[d]); overrides[k] = { ...(overrides[k]||{}), [rid(4)]:'N7' }; }
-  render(); generateFortnight();                    // commit the fortnight
+  for (const d of NA) { const k = K(days[d]); overrides[k] = { ...(overrides[k]||{}), [rid(4)]:'N7' }; entered.add('4:'+d); }
+  const k2 = K(days[3]); overrides[k2] = { ...(overrides[k2]||{}), [rid(8)]:'D6' }; entered.add('8:'+3);
+  render(); generateFortnight();                    // "commit" the fortnight
   const sh = sched.sh;
-  // nights present ONLY where entered (idx 4); nobody else has N7
-  let strayNights = 0, myNights = 0;
+  // EVERY non-OFF cell must be one I entered — Generate added nothing
+  let autoCells = 0, keptEntries = 0;
   for (let i = 0; i < sh.length; i++) for (let d = 0; d < 14; d++) {
-    if (sh[i][d] !== 'N7') continue;
-    if (i === 4) myNights++; else strayNights++;
+    if (sh[i][d] === 'OFF') continue;
+    if (entered.has(i+':'+d)) keptEntries++; else autoCells++;
   }
-  // no weekend surplus: Sat/Sun carry exactly 2 D7 (+ any hand-entered nights), no S10
-  let wkndSurplus = 0;
-  for (const wd of [5,6,12,13]) { if (cnt(sh,wd,'D7') !== 2 || cnt(sh,wd,'S10') !== 0) wkndSurplus++; }
+  // a committed fortnight must match an Auto-device's render of it (same everywhere)
+  const mine = JSON.stringify(sh);
+  manualMode = false; render();
+  const asAuto = JSON.stringify(sched.sh);
   manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; cycleOffset = 0; render();
-  return { strayNights, myNights, wkndSurplus };
+  return { autoCells, keptEntries, entered: entered.size, sameOnAuto: mine === asAuto };
 });
-check('Generate adds no nights of its own (only what you entered)', handGen.strayNights === 0, handGen.strayNights + ' unexpected N7');
-check('your hand-entered nights are kept', handGen.myNights === 7, handGen.myNights + '/7 kept');
-check('no weekend surplus after Generate', handGen.wkndSurplus === 0, handGen.wkndSurplus + ' weekend days wrong');
+check('Manual Generate auto-fills NOTHING (only your entries appear)', handGen.autoCells === 0, handGen.autoCells + ' auto cells');
+check('all your manual entries are kept', handGen.keptEntries === handGen.entered, handGen.keptEntries + '/' + handGen.entered);
+check('a committed fortnight looks identical on an Auto device', handGen.sameOnAuto === true);
 
 /* ---------------- 2. requests must not break the rules ---------------- */
 const scen = await page.evaluate((NS) => {
