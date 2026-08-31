@@ -116,7 +116,7 @@ const manual = await page.evaluate(() => {
   const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
   const trail = r => { let c=0; for (let d=13; d>=0 && WORK.has(r[d]); d--) c++; return c; };
   const lead  = r => { let c=0; for (let d=0; d<14 && WORK.has(r[d]); d++) c++; return c; };
-  overrides = {}; seed = 4242;
+  overrides = {}; frozen = {}; seed = 4242;
   // a generated fortnight must look the same to a device in Auto
   let identical = 0, total = 0;
   for (let off = 0; off < 5; off++) {
@@ -142,7 +142,7 @@ const manual = await page.evaluate(() => {
     order:[...order], ids:[...ids], seed:1, startDate:startDateStr, overrides:{}, history:[],
     manualMode:false, committedCycles:{}, cycleSeeds:{} });
   const stillManual = manualMode;
-  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; cycleOffset = 0; render();
+  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; frozen = {}; cycleOffset = 0; render();
   return { identical, total, seam, blank, stillManual };
 });
 console.log('\n--- Manual mode ---');
@@ -151,34 +151,32 @@ check('<=3 across the cycle seam holds in Manual too', manual.seam === 0, manual
 check('an ungenerated fortnight stays blank', manual.blank === 0, manual.blank + ' filled cells');
 check('a synced Auto device cannot flip this one to Auto', manual.stillManual === true);
 
-/* ---------------- 1d. Manual mode is strictly manual: Generate auto-fills NOTHING ---------------- */
+/* ---------------- 1d. Manual Generate fills, then FREEZES (edits don't cascade) ---------------- */
 const handGen = await page.evaluate(() => {
-  const K = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; };
-  manualMode = true; committedCycles = {}; cycleSeeds = {}; overrides = {}; seed = 77; cycleOffset = 0;
-  const days = computeSchedule(0, true, true).days;
-  // enter a handful of cells by hand (nights for idx 4, a day shift for idx 8)
-  const entered = new Set();
-  const NA = [0,1,5,6,9,10,11];
-  for (const d of NA) { const k = K(days[d]); overrides[k] = { ...(overrides[k]||{}), [rid(4)]:'N7' }; entered.add('4:'+d); }
-  const k2 = K(days[3]); overrides[k2] = { ...(overrides[k2]||{}), [rid(8)]:'D6' }; entered.add('8:'+3);
-  render(); generateFortnight();                    // "commit" the fortnight
-  const sh = sched.sh;
-  // EVERY non-OFF cell must be one I entered — Generate added nothing
-  let autoCells = 0, keptEntries = 0;
-  for (let i = 0; i < sh.length; i++) for (let d = 0; d < 14; d++) {
-    if (sh[i][d] === 'OFF') continue;
-    if (entered.has(i+':'+d)) keptEntries++; else autoCells++;
-  }
-  // a committed fortnight must match an Auto-device's render of it (same everywhere)
-  const mine = JSON.stringify(sh);
+  manualMode = true; committedCycles = {}; cycleSeeds = {}; overrides = {}; frozen = {}; seed = 9; cycleOffset = 0;
+  render(); generateFortnight();                       // fill the gaps + bake to a fixed grid
+  const g1 = sched.sh.map(r => r.slice());
+  const filled = g1.reduce((a, r) => a + r.filter(x => x !== 'OFF').length, 0);
+  const autoNights = g1.reduce((a, r) => a + r.filter(x => x === 'N7').length, 0);   // no N7 entered -> none auto-placed
+  const weekendSurplus = (() => { let bad = 0; for (const wd of [5,6,12,13]) { let d7=0,s10=0; for (let i=0;i<g1.length;i++){ if(g1[i][wd]==='D7')d7++; if(g1[i][wd]==='S10')s10++; } if (d7!==2||s10!==0) bad++; } return bad; })();
+  // now edit ONE cell through the real cell-editor path
+  mStaffId = null; mRn = 3; mDay = 4; mSel = (sched.sh[3][4] === 'OFF' ? 'D6' : 'OFF');
+  saveCell();
+  const g2 = sched.sh.map(r => r.slice());
+  let changed = 0, list = [];
+  for (let i = 0; i < g1.length; i++) for (let d = 0; d < 14; d++) if (g1[i][d] !== g2[i][d]) { changed++; list.push(i+':'+d); }
+  // a frozen fortnight renders identically on an Auto device
+  const mine = JSON.stringify(g2);
   manualMode = false; render();
   const asAuto = JSON.stringify(sched.sh);
-  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; cycleOffset = 0; render();
-  return { autoCells, keptEntries, entered: entered.size, sameOnAuto: mine === asAuto };
+  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; frozen = {}; cycleOffset = 0; render();
+  return { filled, autoNights, weekendSurplus, changed, list, sameOnAuto: mine === asAuto };
 });
-check('Manual Generate auto-fills NOTHING (only your entries appear)', handGen.autoCells === 0, handGen.autoCells + ' auto cells');
-check('all your manual entries are kept', handGen.keptEntries === handGen.entered, handGen.keptEntries + '/' + handGen.entered);
-check('a committed fortnight looks identical on an Auto device', handGen.sameOnAuto === true);
+check('Manual Generate fills the fortnight', handGen.filled > 50, handGen.filled + ' cells filled');
+check('Manual Generate places no auto nights', handGen.autoNights === 0, handGen.autoNights + ' N7');
+check('no weekend surplus in a generated fortnight', handGen.weekendSurplus === 0, handGen.weekendSurplus + ' weekend days wrong');
+check('editing a cell changes ONLY that cell (no cascade)', handGen.changed === 1, handGen.changed + ' cells changed: ' + handGen.list.join(','));
+check('a frozen fortnight looks identical on an Auto device', handGen.sameOnAuto === true);
 
 /* ---------------- 2. requests must not break the rules ---------------- */
 const scen = await page.evaluate((NS) => {
