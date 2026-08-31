@@ -43,7 +43,7 @@ await page.waitForTimeout(700);
 const reg = await page.evaluate(({ SEEDS, CYCLES }) => {
   const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
   const MIN = [{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
-    {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}];
+    {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}];
   const trail = r => { let c=0; for (let d=13; d>=0 && WORK.has(r[d]); d--) c++; return c; };
   const lead  = r => { let c=0; for (let d=0; d<14 && WORK.has(r[d]); d++) c++; return c; };
   const maxRun = r => { let m=0,x=0; for (let d=0; d<14; d++) { if (WORK.has(r[d])) { x++; if (x>m) m=x; } else x=0; } return m; };
@@ -64,7 +64,7 @@ const reg = await page.evaluate(({ SEEDS, CYCLES }) => {
       for (let d = 0; d < 14; d++) if (cnt(A, d, 'N7') !== 2) r.nightCount++;   // 2 nurses per night
       for (const w of [0, 1]) {                                                 // weekend structure
         const sat = w*7+5, sun = w*7+6;
-        if (cnt(A,sat,'D7') !== 2 || cnt(A,sat,'S10') !== 1) r.satStruct++;
+        if (cnt(A,sat,'D7') !== 2 || cnt(A,sat,'S10') !== 0) r.satStruct++;   // 2-RN turn, no surplus
         if (cnt(A,sun,'D7') !== 2) r.sunStruct++;
       }
       for (let d = 0; d < 14; d++) {                                            // daily minimums
@@ -81,7 +81,7 @@ check('<=3 consecutive days across the cycle seam', reg.boundaryRun === 0, reg.b
 check('<=3 consecutive days within a cycle',        reg.cycleRun === 0,    reg.cycleRun + ' violations');
 check('every nurse works exactly 7 shifts',         reg.notSeven === 0,    reg.notSeven + ' nurses off 7');
 check('exactly 2 nurses on every night',            reg.nightCount === 0,  reg.nightCount + ' nights wrong');
-check('Saturday = 2x D7 + 1x S10',                  reg.satStruct === 0,   reg.satStruct + ' weekends wrong');
+check('Saturday = 2x D7, no surplus',               reg.satStruct === 0,   reg.satStruct + ' weekends wrong');
 check('Sunday = 2x D7',                             reg.sunStruct === 0,   reg.sunStruct + ' weekends wrong');
 check('no day below minimum staffing',              reg.belowMin === 0,    reg.belowMin + ' shortfalls');
 
@@ -151,12 +151,40 @@ check('<=3 across the cycle seam holds in Manual too', manual.seam === 0, manual
 check('an ungenerated fortnight stays blank', manual.blank === 0, manual.blank + ' filled cells');
 check('a synced Auto device cannot flip this one to Auto', manual.stillManual === true);
 
+/* ---------------- 1d. a hand-generated fortnight: no auto nights, no weekend surplus ---------------- */
+const handGen = await page.evaluate(() => {
+  const WORK = new Set(['D6','D7','S8','S9','S10','E10','S11','N7']);
+  const K = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; };
+  const cnt = (sh,d,t) => { let c=0; for (let i=0;i<sh.length;i++) if (sh[i][d]===t) c++; return c; };
+  manualMode = true; committedCycles = {}; cycleSeeds = {}; overrides = {}; seed = 77; cycleOffset = 0;
+  const days = computeSchedule(0, true, true).days;
+  // enter nights by hand for two nurses (idx 4 and 5) across a night pattern
+  const NA = [0,1,5,6,9,10,11];
+  for (const d of NA) { const k = K(days[d]); overrides[k] = { ...(overrides[k]||{}), [rid(4)]:'N7' }; }
+  render(); generateFortnight();                    // commit the fortnight
+  const sh = sched.sh;
+  // nights present ONLY where entered (idx 4); nobody else has N7
+  let strayNights = 0, myNights = 0;
+  for (let i = 0; i < sh.length; i++) for (let d = 0; d < 14; d++) {
+    if (sh[i][d] !== 'N7') continue;
+    if (i === 4) myNights++; else strayNights++;
+  }
+  // no weekend surplus: Sat/Sun carry exactly 2 D7 (+ any hand-entered nights), no S10
+  let wkndSurplus = 0;
+  for (const wd of [5,6,12,13]) { if (cnt(sh,wd,'D7') !== 2 || cnt(sh,wd,'S10') !== 0) wkndSurplus++; }
+  manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; cycleOffset = 0; render();
+  return { strayNights, myNights, wkndSurplus };
+});
+check('Generate adds no nights of its own (only what you entered)', handGen.strayNights === 0, handGen.strayNights + ' unexpected N7');
+check('your hand-entered nights are kept', handGen.myNights === 7, handGen.myNights + '/7 kept');
+check('no weekend surplus after Generate', handGen.wkndSurplus === 0, handGen.wkndSurplus + ' weekend days wrong');
+
 /* ---------------- 2. requests must not break the rules ---------------- */
 const scen = await page.evaluate((NS) => {
   const WORK = new Set(['D6','D7','S8','S9','S10','N7']);
   const ENTRY = new Set(['D6','D7','S8','S9','S10','N7','HOL','VAC']);
   const MIN = [{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
-    {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:1},{D6:0,D7:2,S8:0,S9:0,S10:0}];
+    {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}];
   const K = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; };
   const maxRun = r => { let m=0,x=0; for (let d=0;d<14;d++){ if (WORK.has(r[d])){x++;if(x>m)m=x;} else x=0; } return m; };
   const cnt = (sh,d,t) => { let c=0; for (let i=0;i<sh.length;i++) if (sh[i][d]===t) c++; return c; };
