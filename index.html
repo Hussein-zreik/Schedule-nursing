@@ -282,12 +282,26 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .fair-range-info{font-size:var(--fs-xs);color:var(--muted-2);font-family:var(--font-mono);font-variant-numeric:tabular-nums;margin-left:auto}
 /* settings: the two group lists, turn order by slot */
 .sett-cyc{font-size:var(--fs-xs);color:var(--muted-2);font-family:var(--font-mono)}
+.sett-tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border-2);margin-bottom:var(--sp-3)}
+.sett-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted-2);font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:500;padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.sett-tab:hover{color:var(--text-strong)}
+.sett-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sett-min-grid{display:grid;grid-template-columns:auto repeat(6,1fr);gap:6px;align-items:center;font-size:var(--fs-sm)}
+.sett-min-grid .mh{font-size:var(--fs-xs);color:var(--muted-2);font-weight:600;text-align:center}
+.sett-min-grid .rl{color:var(--muted-2);font-size:var(--fs-xs)}
+.min-num{width:100%;background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);color:var(--text);padding:3px 4px;font-family:var(--font-mono);text-align:center}
+.min-num.zero{color:var(--muted-4)}
 .sett-note{font-size:var(--fs-xs);color:var(--muted-2);line-height:var(--lh-normal);margin-bottom:var(--sp-3)}
 .fatigue-box{margin-top:var(--sp-4);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--panel-2)}
 .fatigue-h{font-size:var(--fs-sm);font-weight:600;color:var(--text-2);margin-bottom:var(--sp-2)}
 .fatigue-sub{font-weight:400;color:var(--muted-3);font-size:var(--fs-xs)}
 .fatigue-row{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-2);margin-top:7px;flex-wrap:wrap}
 .fatigue-num{width:52px;background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);color:var(--text);padding:3px 6px;font-family:var(--font-mono);text-align:center}
+.staff-cfg{margin-bottom:var(--sp-3)}
+.staff-cfg-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.staff-cfg-row{display:flex;align-items:center;gap:6px;margin:4px 0 4px 12px}
+.staff-label-in{background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);color:var(--text);padding:4px 8px;font-family:var(--font-sans);font-size:var(--fs-sm);min-width:0;flex:1;max-width:220px}
+.staff-cfg-head .staff-label-in{font-weight:600;max-width:180px}
 .sett-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);max-height:58vh;overflow:auto}
 @media (max-width:820px){.sett-grid{grid-template-columns:1fr}}
 .sett-col h4{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
@@ -673,23 +687,58 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 <div class="modal-wrap" id="settModal">
   <div class="modal report-modal">
     <div class="report-head">
-      <h3 style="margin:0">Settings — group lists &amp; turn order</h3>
+      <h3 style="margin:0">Settings</h3>
       <span class="sett-cyc" id="settCyc">—</span>
     </div>
-    <div class="sett-note">The turn belongs to the <b>slot</b>, not the person. Slot 1 &amp; 2 take nights, slot 3 &amp; 4 take the weekend, then it moves down each cycle. Move an RN and they take that slot's turn.</div>
-    <div class="sett-swaphint" id="settSwapHint"></div>
-    <div class="sett-grid" id="settBody"></div>
-    <div class="fatigue-box">
-      <h4 class="fatigue-h">Fatigue rules <span class="fatigue-sub">(advisory warnings in the health banner — never change the schedule)</span></h4>
-      <label class="fatigue-row"><input type="checkbox" id="fgTurn" onchange="setFatigue('turnaround',this.checked)"> Warn on a <b>night → day</b> shift the next day</label>
-      <label class="fatigue-row">Max <input type="number" id="fgMaxN" min="0" max="31" class="fatigue-num" onchange="setFatigue('maxNights',this.value)"> <b>nights per month</b> <span class="fatigue-sub">(0 = off)</span></label>
-      <label class="fatigue-row">At least <input type="number" id="fgRest" min="1" max="7" class="fatigue-num" onchange="setFatigue('minRest',this.value)"> <b>days off between working stretches</b> <span class="fatigue-sub">(1 = off)</span></label>
+    <div class="sett-tabs" role="tablist">
+      <button class="sett-tab" data-tab="groups" onclick="settTab('groups')">Groups &amp; turn</button>
+      <button class="sett-tab" data-tab="min"    onclick="settTab('min')">Staffing minimums</button>
+      <button class="sett-tab" data-tab="shifts" onclick="settTab('shifts')">Shifts</button>
+      <button class="sett-tab" data-tab="staff"  onclick="settTab('staff')">Support staff</button>
+      <button class="sett-tab" data-tab="rules"  onclick="settTab('rules')">Fatigue rules</button>
+      <button class="sett-tab" data-tab="data"   onclick="settTab('data')">Roster &amp; data</button>
     </div>
-    <div class="mactions" style="margin-top:1rem;justify-content:space-between">
-      <span style="display:flex;gap:8px">
+
+    <div class="sett-panel" id="settPanel-groups">
+      <div class="sett-note">The turn belongs to the <b>slot</b>, not the person. Slot 1 &amp; 2 take nights, slot 3 &amp; 4 take the weekend, then it moves down each cycle. Move an RN and they take that slot's turn.</div>
+      <div class="sett-swaphint" id="settSwapHint"></div>
+      <div class="sett-grid" id="settBody"></div>
+      <div class="mactions" style="margin-top:var(--sp-3)">
         <button class="btn sm" onclick="settAdd('A')">+ Add to A</button>
         <button class="btn sm" onclick="settAdd('B')">+ Add to B</button>
-      </span>
+      </div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-min" hidden>
+      <div class="sett-note">Minimum staff needed on each weekday for each shift type. The generator fills weekdays up to these numbers; the health banner flags any day below them. Weekend day cover is the fixed 2-RN turn (edit D7 only).</div>
+      <div id="settMinBody"></div>
+      <div class="mactions" style="margin-top:var(--sp-3)"><button class="btn sm" onclick="minReset()">Reset to defaults</button></div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-shifts" hidden>
+      <div class="sett-note">Extra shift types you place by hand (like E10, S11). They appear in the cell picker, legend and exports, and count as working shifts — but the automatic weekday fill only ever uses the core day shifts.</div>
+      <div id="settShiftBody"></div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-staff" hidden>
+      <div class="sett-note">Support-staff groups (not part of the RN rules). Rename a group, and add or remove people in it.</div>
+      <div id="settStaffBody"></div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-rules" hidden>
+      <div class="fatigue-box">
+        <h4 class="fatigue-h">Fatigue rules <span class="fatigue-sub">(advisory warnings in the health banner — never change the schedule)</span></h4>
+        <label class="fatigue-row"><input type="checkbox" id="fgTurn" onchange="setFatigue('turnaround',this.checked)"> Warn on a <b>night → day</b> shift the next day</label>
+        <label class="fatigue-row">Max <input type="number" id="fgMaxN" min="0" max="31" class="fatigue-num" onchange="setFatigue('maxNights',this.value)"> <b>nights per month</b> <span class="fatigue-sub">(0 = off)</span></label>
+        <label class="fatigue-row">At least <input type="number" id="fgRest" min="1" max="7" class="fatigue-num" onchange="setFatigue('minRest',this.value)"> <b>days off between working stretches</b> <span class="fatigue-sub">(1 = off)</span></label>
+      </div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-data" hidden>
+      <div id="settDataBody"></div>
+    </div>
+
+    <div class="mactions" style="margin-top:1rem;justify-content:flex-end">
       <button class="btn accent" onclick="closeSettings()">Done</button>
     </div>
   </div>
@@ -827,10 +876,14 @@ const SHIFT_GROUPS=[
   {label:'Leave',    types:['HOL','VAC']},
   {label:'Off',      types:['REQ','OFF']}
 ];
-const DAILY_MIN=[
+let DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}
 ];
+const DEFAULT_MIN=JSON.parse(JSON.stringify(DAILY_MIN));   // for "reset to defaults"
+const MIN_TYPES=['D6','D7','S8','S9','S10'];               // editable core day-shift columns
+let defHol=14,defVac=21;                                   // default Hol/Vac balances for new RNs
+let staffLabels={};                                        // { groupKey: customLabel } — overrides STAFF_GROUPS labels
 let N=19; // number of RNs — kept in sync with names.length
 const SVG_SUN='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 const SVG_MOON='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
@@ -879,14 +932,15 @@ let staff=[];        // [{id, g, name}] — id is stable, like the RN ids
 let staffShifts={};  // { 'YYYY-MM-DD': { staffId: shift } } — manual entries only
 function ensureStaff(){
   if(!Array.isArray(staff))staff=[];
-  staff=staff.filter(s=>s&&typeof s==='object'&&STAFF_GROUPS.some(g=>g.key===s.g));
-  for(const g of STAFF_GROUPS){
-    const have=staff.filter(s=>s.g===g.key);
-    for(let i=have.length;i<g.count;i++)
-      staff.push({id:g.key.toLowerCase()+i,g:g.key,name:`${g.single} ${i+1}`});
-  }
+  staff=staff.filter(s=>s&&typeof s==='object'&&s.id&&STAFF_GROUPS.some(g=>g.key===s.g));
+  // seed the default groups only on a fresh install; after that the user's
+  // add/remove choices stand (so a removed person doesn't reappear).
+  if(!staff.length)for(const g of STAFF_GROUPS)for(let i=0;i<g.count;i++)
+    staff.push({id:g.key.toLowerCase()+i,g:g.key,name:`${g.single} ${i+1}`});
 }
 const staffOf=gk=>staff.filter(s=>s.g===gk);
+const staffGroupLabel=gk=>{const c=staffLabels&&staffLabels[gk];const g=STAFF_GROUPS.find(x=>x.key===gk);return (c&&String(c))||(g?g.label:gk);};
+const staffGroupSingle=gk=>{const g=STAFF_GROUPS.find(x=>x.key===gk);return g?g.single:'Staff';};
 function syncN(){N=names.length;} // roster size follows the names array
 function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
   if(!Array.isArray(order))order=[];
@@ -921,7 +975,8 @@ function saveState(){
     localStorage.setItem(STORE_KEY,JSON.stringify({
       names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue
+      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue,
+      dailyMin:DAILY_MIN,defHol,defVac,staffLabels
     }));
   }catch(e){/* storage unavailable */}
   if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
@@ -954,6 +1009,10 @@ function applyStateObject(s){
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
   if(s.frozen&&typeof s.frozen==='object')frozen=s.frozen; else frozen={};
   if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();
+  if(Array.isArray(s.dailyMin)&&s.dailyMin.length===7&&s.dailyMin.every(x=>x&&typeof x==='object'))DAILY_MIN=s.dailyMin;
+  if(typeof s.defHol==='number')defHol=s.defHol;
+  if(typeof s.defVac==='number')defVac=s.defVac;
+  if(s.staffLabels&&typeof s.staffLabels==='object')staffLabels=s.staffLabels;
   if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
   if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;
   ensureStaff();
@@ -987,7 +1046,8 @@ function migrateOverridesToIds(){
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,committedCycles,cycleSeeds,frozen,fatigue};
+    overrides,committedCycles,cycleSeeds,frozen,fatigue,
+    dailyMin:DAILY_MIN,defHol,defVac,staffLabels};
 }
 function loadState(){
   try{
@@ -1644,7 +1704,7 @@ function renderTable(){
   // ----- support staff: one block per group, independent of every RN rule -----
   ensureStaff();
   for(const g of STAFF_GROUPS){
-    h+=`<tr class="grp-row"><td class="grp-lbl">${escapeHtml(g.label)}</td><td colspan="16"></td></tr>`;
+    h+=`<tr class="grp-row"><td class="grp-lbl">${escapeHtml(staffGroupLabel(g.key))}</td><td colspan="16"></td></tr>`;
     for(const p of staffOf(g.key)){
       h+=`<tr><td class="rn-col"><input class="staff-name" value="${escapeHtml(p.name)}" onchange="setStaffName('${p.id}',this.value)" aria-label="Name"></td>`;
       let w1=0,w2=0;
@@ -1858,7 +1918,14 @@ function settApply(a,b,label){
   pushHistory(label,before);
   render();saveState();renderSettings();
 }
-function openSettings(){settSwapArm=null;renderSettings();document.getElementById('settModal').classList.add('open');}
+let settTabCur='groups';
+function settTab(name){
+  settTabCur=name;
+  document.querySelectorAll('#settModal .sett-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  document.querySelectorAll('#settModal .sett-panel').forEach(pl=>{pl.hidden=(pl.id!=='settPanel-'+name);});
+  renderSettings();
+}
+function openSettings(){settSwapArm=null;settTab(settTabCur);document.getElementById('settModal').classList.add('open');}
 function closeSettings(){settSwapArm=null;document.getElementById('settModal').classList.remove('open');}
 let settSwapArm=null;   // index of the RN armed for a swap (two-tap), or null
 function setFatigue(key,val){
@@ -1904,6 +1971,7 @@ function renderSettings(){
     return h+'</div>';
   };
   box.innerHTML=(col(a,'A','B')+col(b,'B','A'));
+  renderMinTab();renderShiftTab();renderStaffTab();renderDataTab();
 }
 // Two-tap swap from the Settings panel: first tap arms an RN, second tap on a
 // different RN trades their groups AND list positions (same as swapRn), so the
@@ -1941,6 +2009,131 @@ function settRemove(i){
   removeRN(i);renderSettings();
 }
 function settAdd(g){addRN(g);renderSettings();}
+
+/* ===== Settings tab: Staffing minimums ===== */
+function renderMinTab(){
+  const box=document.getElementById('settMinBody');if(!box)return;
+  let h='<div class="sett-min-grid"><div class="mh rl"></div>'+MIN_TYPES.map(t=>`<div class="mh">${t}</div>`).join('')+'<div class="mh">total</div>';
+  for(let d=0;d<7;d++){
+    const wknd=d>=5;
+    h+=`<div class="rl">${DAYS[d]}</div>`;
+    let tot=0;
+    for(const t of MIN_TYPES){
+      const v=(DAILY_MIN[d]&&DAILY_MIN[d][t])||0; tot+=v;
+      // weekend day cover is the fixed 2-RN turn: only D7 is meaningful there
+      const dis=(wknd&&t!=='D7');
+      h+=`<div><input class="min-num${v?'':' zero'}" type="number" min="0" max="20" value="${v}" ${dis?'disabled title="Weekend cover is the fixed 2-RN turn"':''} onchange="minSet(${d},'${t}',this.value)"></div>`;
+    }
+    h+=`<div class="mh">${tot}</div>`;
+  }
+  h+='</div>';
+  box.innerHTML=h;
+}
+function minSet(d,type,val){
+  const v=Math.max(0,Math.min(20,parseInt(val)||0));
+  if(!DAILY_MIN[d])DAILY_MIN[d]={};
+  if(v===0)delete DAILY_MIN[d][type]; else DAILY_MIN[d][type]=v;
+  render();saveState();renderSettings();
+}
+function minReset(){DAILY_MIN=JSON.parse(JSON.stringify(DEFAULT_MIN));render();saveState();renderSettings();toast('Minimums reset to defaults');}
+
+/* ===== Settings tab: Shifts (custom shift editor — next stage) ===== */
+function renderShiftTab(){
+  const box=document.getElementById('settShiftBody');if(!box)return;
+  const chip=c=>`<span class="leg-badge b-${c}">${c}</span> ${escapeHtml(LABELS_M[c]||c)}`;
+  box.innerHTML=`<div class="fatigue-box"><h4 class="fatigue-h">Current shift types</h4>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">
+      <div>Core (used by the automatic fill): ${['D6','D7','S8','S9','S10'].map(chip).join(' &nbsp; ')}</div>
+      <div>Night: ${chip('N7')}</div>
+      <div>Extra (placed by hand): ${['E10','S11'].map(chip).join(' &nbsp; ')}</div>
+      <div>Leave / off: ${['HOL','VAC','REQ','OFF'].map(chip).join(' &nbsp; ')}</div>
+    </div>
+    <div class="fatigue-sub" style="margin-top:10px">Adding, renaming and re-colouring your own extra shift types here is the next update.</div>
+  </div>`;
+}
+
+/* ===== Settings tab: Support staff ===== */
+function renderStaffTab(){
+  const box=document.getElementById('settStaffBody');if(!box)return;
+  ensureStaff();
+  let h='';
+  for(const g of STAFF_GROUPS){
+    const list=staffOf(g.key);
+    h+=`<div class="staff-cfg"><div class="staff-cfg-head">
+      <input class="staff-label-in" value="${escapeHtml(staffGroupLabel(g.key))}" onchange="setStaffLabel('${g.key}',this.value)" aria-label="Group name">
+      <span class="fatigue-sub">(${list.length})</span>
+      <button class="btn sm" onclick="addStaff('${g.key}')">+ Add</button></div>`;
+    if(!list.length)h+='<div class="req-empty">Nobody in this group.</div>';
+    for(const p of list){
+      h+=`<div class="staff-cfg-row"><input class="staff-label-in" value="${escapeHtml(p.name)}" onchange="setStaffName('${p.id}',this.value)" aria-label="Name">
+        <button class="sett-btn del" onclick="removeStaff('${p.id}')" title="Remove">✕</button></div>`;
+    }
+    h+='</div>';
+  }
+  box.innerHTML=h;
+}
+function setStaffLabel(gk,val){const v=String(val).trim().slice(0,30);if(!v)return;staffLabels[gk]=v;render();saveState();renderSettings();}
+function addStaff(gk){
+  const g=STAFF_GROUPS.find(x=>x.key===gk);if(!g)return;
+  const before=snapshot();const existing=new Set(staff.map(s=>s.id));let n=0,id;
+  do{id=gk.toLowerCase()+(n++);}while(existing.has(id));
+  staff.push({id,g:gk,name:`${g.single} ${staffOf(gk).length+1}`});
+  pushHistory(`Added ${g.single}`,before);render();saveState();renderSettings();
+}
+function removeStaff(id){
+  const p=staff.find(s=>s.id===id);if(!p)return;
+  if(!confirm(`Remove ${p.name}?`))return;
+  const before=snapshot();
+  staff=staff.filter(s=>s.id!==id);
+  for(const k in staffShifts){if(staffShifts[k][id]!==undefined)delete staffShifts[k][id];if(!Object.keys(staffShifts[k]).length)delete staffShifts[k];}
+  pushHistory(`Removed ${p.name}`,before);render();saveState();renderSettings();
+}
+
+/* ===== Settings tab: Roster & data ===== */
+function renderDataTab(){
+  const box=document.getElementById('settDataBody');if(!box)return;
+  box.innerHTML=`
+    <div class="fatigue-box">
+      <h4 class="fatigue-h">Default balances for new RNs</h4>
+      <label class="fatigue-row">Holiday <input type="number" id="defHolIn" min="0" max="99" class="fatigue-num" value="${defHol}" onchange="setDefBal('hol',this.value)"> days</label>
+      <label class="fatigue-row">Vacation <input type="number" id="defVacIn" min="0" max="99" class="fatigue-num" value="${defVac}" onchange="setDefBal('vac',this.value)"> days</label>
+      <div class="fatigue-row" style="margin-top:10px"><button class="btn sm" onclick="setAllBal()">Set ALL current RNs to these balances</button></div>
+    </div>
+    <div class="fatigue-box" style="margin-top:var(--sp-3)">
+      <h4 class="fatigue-h">Backup &amp; reset</h4>
+      <div class="fatigue-row"><button class="btn sm" onclick="exportBackup()">Export backup</button>
+        <button class="btn sm" onclick="document.getElementById('importFile').click()">Import backup…</button></div>
+      <div class="fatigue-row" style="margin-top:6px"><button class="btn sm" onclick="pruneOld()" title="Delete stored generated grids for cycles far in the past">Prune old cycles</button>
+        <button class="btn sm" onclick="resetAll()" style="color:var(--neg)">Reset everything…</button></div>
+    </div>`;
+}
+function setDefBal(which,val){const v=Math.max(0,Math.min(99,parseInt(val)||0));if(which==='hol')defHol=v;else defVac=v;saveState();}
+function setAllBal(){
+  if(!confirm(`Set every RN's Holiday to ${defHol} and Vacation to ${defVac}?`))return;
+  const before=snapshot();for(let i=0;i<N;i++){holBal[i]=defHol;vacBal[i]=defVac;}
+  pushHistory('Set all balances',before);render();saveState();renderSettings();toast('All balances updated');
+}
+function pruneOld(){
+  const cur=autoOffset(document.getElementById('startDate').value);const keepFrom=cur-6; // keep ~3 months back
+  const si=document.getElementById('startDate').value;const anchor=getMonday(si?new Date(si):new Date());
+  let n=0;
+  for(const map of [committedCycles,cycleSeeds,frozen]){for(const k in map){
+    const off=Math.round((new Date(k+'T00:00:00')-anchor)/(86400000*14));
+    if(off<keepFrom){delete map[k];n++;}
+  }}
+  render();saveState();toast(n?`Pruned ${n} old stored entries`:'Nothing old to prune');
+}
+function resetAll(){
+  if(!confirm('This erases the ENTIRE schedule, roster, requests and settings on this device and (if connected) the shared cloud copy. Export a backup first. Continue?'))return;
+  if(!confirm('Are you absolutely sure? This cannot be undone.'))return;
+  try{localStorage.removeItem(STORE_KEY);}catch(e){}
+  overrides={};frozen={};committedCycles={};cycleSeeds={};history=[];staffShifts={};
+  names=Array.from({length:19},(_,i)=>`RN ${i+1}`);groups=Array.from({length:19},(_,i)=>i<10?'A':'B');
+  holBal=Array(19).fill(defHol);vacBal=Array(19).fill(defVac);order=Array.from({length:19},(_,i)=>i);
+  ids=Array.from({length:19},(_,i)=>'n'+i);staff=[];staffLabels={};DAILY_MIN=JSON.parse(JSON.stringify(DEFAULT_MIN));
+  syncN();ensureStaff();manualMode=false;
+  closeSettings();render();saveState();toast('Everything reset');
+}
 
 /* ---------- "whose turn this cycle" info panel ----------
    Everything here is read from the schedule currently on screen, so it stays
@@ -2022,7 +2215,7 @@ function addRN(g){
   const grp=g==='B'?'B':'A';
   const before=snapshot();
   const nm=nextRnName();
-  names.push(nm);groups.push(grp);holBal.push(14);vacBal.push(21);
+  names.push(nm);groups.push(grp);holBal.push(defHol);vacBal.push(defVac);
   ids.push(newId());                       // stable id — requests bind to this, not the row
   order.push(names.length-1); // show the new RN at the end of the list
   syncN();ensureIds();normalizeOrder();
@@ -2141,7 +2334,7 @@ function renderRequests(){
   const cur=rnSel.value;
   let opts=`<optgroup label="RNs">`+order.map(i=>`<option value="${i}">${escapeHtml(names[i])} · ${groups[i]}</option>`).join('')+`</optgroup>`;
   for(const g of STAFF_GROUPS){
-    opts+=`<optgroup label="${escapeHtml(g.label)}">`+staffOf(g.key).map(p=>`<option value="s:${p.id}">${escapeHtml(p.name)}</option>`).join('')+`</optgroup>`;
+    opts+=`<optgroup label="${escapeHtml(staffGroupLabel(g.key))}">`+staffOf(g.key).map(p=>`<option value="s:${p.id}">${escapeHtml(p.name)}</option>`).join('')+`</optgroup>`;
   }
   rnSel.innerHTML=opts;
   if(cur&&[...rnSel.options].some(o=>o.value===cur))rnSel.value=cur;
@@ -2484,7 +2677,7 @@ function exportRows(){
   // support-staff groups (their own sections, no RN rules)
   ensureStaff();
   for(const g of STAFF_GROUPS){
-    rows.push([]);rows.push([g.label]);
+    rows.push([]);rows.push([staffGroupLabel(g.key)]);
     for(const p of staffOf(g.key)){
       let w1=0,w2=0;const cells=[];
       for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
@@ -2599,7 +2792,7 @@ async function exportExcel(){
     ensureStaff();
     let sr=totR+2;   // one blank row after the per-day count rows
     for(const g of STAFF_GROUPS){
-      const gc=ws.getCell(sr,1);gc.value=g.label;ws.mergeCells(sr,1,sr,2);
+      const gc=ws.getCell(sr,1);gc.value=staffGroupLabel(g.key);ws.mergeCells(sr,1,sr,2);
       gc.fill=solid(P.header);gc.font={bold:true,size:10,color:{argb:P.headerFg}};
       gc.alignment={horizontal:'left'};gc.border=allBorder;
       for(let c=3;c<=NC;c++){const cell=ws.getCell(sr,c);cell.fill=solid(P.header);cell.border=allBorder;}
@@ -2738,7 +2931,7 @@ function exportPDF(){
     const staffRowIdx=new Set(),groupRowIdx=new Set();
     for(const g of STAFF_GROUPS){
       groupRowIdx.add(body.length);
-      body.push([g.label,...Array(16).fill('')]);
+      body.push([staffGroupLabel(g.key),...Array(16).fill('')]);
       for(const p of staffOf(g.key)){
         let w1=0,w2=0;const cells=[];
         for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
