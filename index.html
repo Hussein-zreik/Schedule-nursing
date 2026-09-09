@@ -283,6 +283,11 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 /* settings: the two group lists, turn order by slot */
 .sett-cyc{font-size:var(--fs-xs);color:var(--muted-2);font-family:var(--font-mono)}
 .sett-note{font-size:var(--fs-xs);color:var(--muted-2);line-height:var(--lh-normal);margin-bottom:var(--sp-3)}
+.fatigue-box{margin-top:var(--sp-4);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--panel-2)}
+.fatigue-h{font-size:var(--fs-sm);font-weight:600;color:var(--text-2);margin-bottom:var(--sp-2)}
+.fatigue-sub{font-weight:400;color:var(--muted-3);font-size:var(--fs-xs)}
+.fatigue-row{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-2);margin-top:7px;flex-wrap:wrap}
+.fatigue-num{width:52px;background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);color:var(--text);padding:3px 6px;font-family:var(--font-mono);text-align:center}
 .sett-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);max-height:58vh;overflow:auto}
 @media (max-width:820px){.sett-grid{grid-template-columns:1fr}}
 .sett-col h4{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
@@ -674,6 +679,12 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     <div class="sett-note">The turn belongs to the <b>slot</b>, not the person. Slot 1 &amp; 2 take nights, slot 3 &amp; 4 take the weekend, then it moves down each cycle. Move an RN and they take that slot's turn.</div>
     <div class="sett-swaphint" id="settSwapHint"></div>
     <div class="sett-grid" id="settBody"></div>
+    <div class="fatigue-box">
+      <h4 class="fatigue-h">Fatigue rules <span class="fatigue-sub">(advisory warnings in the health banner — never change the schedule)</span></h4>
+      <label class="fatigue-row"><input type="checkbox" id="fgTurn" onchange="setFatigue('turnaround',this.checked)"> Warn on a <b>night → day</b> shift the next day</label>
+      <label class="fatigue-row">Max <input type="number" id="fgMaxN" min="0" max="31" class="fatigue-num" onchange="setFatigue('maxNights',this.value)"> <b>nights per month</b> <span class="fatigue-sub">(0 = off)</span></label>
+      <label class="fatigue-row">At least <input type="number" id="fgRest" min="1" max="7" class="fatigue-num" onchange="setFatigue('minRest',this.value)"> <b>days off between working stretches</b> <span class="fatigue-sub">(1 = off)</span></label>
+    </div>
     <div class="mactions" style="margin-top:1rem;justify-content:space-between">
       <span style="display:flex;gap:8px">
         <button class="btn sm" onclick="settAdd('A')">+ Add to A</button>
@@ -894,6 +905,12 @@ let manualMode=false;      // when true, fortnights start empty and are filled o
 let committedCycles={};    // { 'YYYY-MM-DD'(cycle Monday): true } — which fortnights have been generated
 let cycleSeeds={};         // { 'YYYY-MM-DD'(cycle Monday): seed } — per-fortnight seed so generating one doesn't reshuffle others
 let frozen={};             // { 'YYYY-MM-DD'(cycle Monday): { nurseId: [14 shifts] } } — a generated fortnight baked to a fixed grid so edits don't cascade
+// advisory fatigue rules (display-only warnings in the health banner)
+let fatigue={turnaround:true, maxNights:8, minRest:1};  // night→day next day; max N7/calendar-month; min days off between working stretches (minRest<=1 = off)
+function ensureFatigue(){if(!fatigue||typeof fatigue!=='object')fatigue={};
+  if(typeof fatigue.turnaround!=='boolean')fatigue.turnaround=true;
+  if(!Number.isInteger(fatigue.maxNights))fatigue.maxNights=8;
+  if(!Number.isInteger(fatigue.minRest))fatigue.minRest=1;}
 let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
 let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null;
 const HIST_MAX=100;
@@ -904,7 +921,7 @@ function saveState(){
     localStorage.setItem(STORE_KEY,JSON.stringify({
       names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen
+      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue
     }));
   }catch(e){/* storage unavailable */}
   if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
@@ -936,6 +953,7 @@ function applyStateObject(s){
   if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
   if(s.frozen&&typeof s.frozen==='object')frozen=s.frozen; else frozen={};
+  if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();
   if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
   if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;
   ensureStaff();
@@ -969,7 +987,7 @@ function migrateOverridesToIds(){
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,committedCycles,cycleSeeds,frozen};
+    overrides,committedCycles,cycleSeeds,frozen,fatigue};
 }
 function loadState(){
   try{
@@ -1682,6 +1700,33 @@ function conflictReport(off,sh){
     if(c<2)nightsShort.push({d,c});else if(c>2)nightsOver.push({d,c});}
   return {over,under,nightsShort,nightsOver,nightSet};
 }
+// advisory fatigue checks (display-only). Returns nurses flagged by each rule:
+//  turn  — worked a night (N7) then a day/eve shift the very next day
+//  rest  — fewer than `minRest` days off between two working stretches
+//  overN — more than `maxNights` nights in a calendar month this fortnight touches
+function fatigueReport(days,sh){
+  ensureFatigue();
+  const turn=new Set(),rest=new Set(),overN=[];
+  if(fatigue.turnaround){
+    for(let i=0;i<N;i++)for(let d=0;d<13;d++)
+      if(sh[i][d]==='N7'&&DAY_SHIFT_TYPES.includes(sh[i][d+1]))turn.add(i);
+  }
+  if(fatigue.minRest>1){
+    for(let i=0;i<N;i++){
+      const runs=[];let x=0;
+      for(let d=0;d<14;d++){if(WORK_TYPES.has(sh[i][d])){if(x===0)runs.push({s:d,e:d});else runs[runs.length-1].e=d;x++;}else x=0;}
+      for(let r=1;r<runs.length;r++)if(runs[r].s-runs[r-1].e-1<fatigue.minRest){rest.add(i);break;}
+    }
+  }
+  if(fatigue.maxNights>0){
+    const seen=new Set(),months=new Set();
+    months.add(days[0].getFullYear()+':'+days[0].getMonth());
+    months.add(days[13].getFullYear()+':'+days[13].getMonth());
+    for(const mk of months){const [y,mo]=mk.split(':').map(Number);const rep=monthlyReport(y,mo);
+      for(let i=0;i<N;i++)if(rep.rows[i]&&rep.rows[i].N7>fatigue.maxNights&&!seen.has(i)){seen.add(i);overN.push({i,n:rep.rows[i].N7});}}
+  }
+  return {turn:[...turn],rest:[...rest],overN};
+}
 // live health-check banner: watches the current schedule (including manual
 // edits) and surfaces staffing-rule problems that aren't otherwise obvious.
 // Display only — it never changes the schedule.
@@ -1710,10 +1755,17 @@ function renderBanner(){
   for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
   // 4) nights not covered by exactly 2 RNs (nights are manual — you fill these)
   const nightGaps=[...cr.nightsShort,...cr.nightsOver].map(x=>`${DAYS[x.d%7]} ${fmt(days[x.d])} (${x.c})`);
+  // 5) advisory fatigue rules (soft warnings — never rule-breaking)
+  const ft=fatigueReport(days,sh);
+  const fatigueParts=[];
+  if(ft.turn.length)fatigueParts.push(`<b>${ft.turn.length}</b> night→day turnaround${ft.turn.length>1?'s':''}: ${ft.turn.map(nm).join(', ')}`);
+  if(ft.overN.length)fatigueParts.push(`<b>${ft.overN.length}</b> over ${fatigue.maxNights} nights/month: ${ft.overN.map(o=>nm(o.i)+' ('+o.n+')').join(', ')}`);
+  if(ft.rest.length)fatigueParts.push(`<b>${ft.rest.length}</b> with under ${fatigue.minRest} day${fatigue.minRest>1?'s':''} off between stretches: ${ft.rest.map(nm).join(', ')}`);
+  const anyFatigue=fatigueParts.length>0;
 
-  if(!short.length&&!notSeven&&!longRuns&&!nightGaps.length){
+  if(!short.length&&!notSeven&&!longRuns&&!nightGaps.length&&!anyFatigue){
     el.className='banner ok';
-    el.innerHTML='<span class="bic">✓</span><span>All staffing rules satisfied.</span>';
+    el.innerHTML='<span class="bic">✓</span><span>All staffing &amp; fatigue rules satisfied.</span>';
     return;
   }
   const parts=[];
@@ -1722,17 +1774,14 @@ function renderBanner(){
   if(overNames.length)parts.push(`<b>${overNames.length}</b> over 7 shifts: ${overNames.join(', ')}`);
   if(underNames.length)parts.push(`<b>${underNames.length}</b> under 7 shifts: ${underNames.join(', ')}`);
   if(longRuns)parts.push(`<b>${longRuns}</b> nurse${longRuns>1?'s':''} working 4+ days in a row`);
+  parts.push(...fatigueParts);   // fatigue warnings come last (advisory)
+  // hard staffing problems are red (bad); fatigue-only / long-run is amber (warn)
   const level=(short.length||notSeven||nightGaps.length)?'bad':'warn';
   let hint='';
   if(nightTurnClash)hint='<div class="bhint">A named nurse above is on the <b>night turn</b> this fortnight and has a request or manual entry that collides with their 7 nights — a day shift pushes them over 7, and an off (or other) on a night day leaves that night short. Remove it in <b>Requests</b>, or fix the night cells by hand.</div>';
   else if(nightGaps.length)hint='<div class="bhint">Nights are manual: assign a replacement yourself by clicking the night cell.</div>';
-  else if(short.length){
-    // the commonest case in Manual mode: the Saturday extra is yours to place
-    const satOnly=short.every(x=>x.startsWith('Sat'));
-    hint=satOnly
-      ? '<div class="bhint">The Saturday extra (S10) is not part of the weekend turn — click that Saturday cell to assign someone.</div>'
-      : '<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
-  }
+  else if(short.length)hint='<div class="bhint">Tip: usually caused by requests that can\'t all be met (e.g. too many off the same day), a manual edit, or an unbalanced A/B group split.</div>';
+  else if(anyFatigue&&!longRuns)hint='<div class="bhint">These are advisory rest/fatigue warnings — fix by hand, or adjust the limits in <b>Settings → Fatigue rules</b>.</div>';
   el.className='banner '+level;
   el.innerHTML=`<span class="bic">⚠</span><div>${parts.join(' &nbsp;·&nbsp; ')}${hint}</div>`;
 }
@@ -1812,8 +1861,19 @@ function settApply(a,b,label){
 function openSettings(){settSwapArm=null;renderSettings();document.getElementById('settModal').classList.add('open');}
 function closeSettings(){settSwapArm=null;document.getElementById('settModal').classList.remove('open');}
 let settSwapArm=null;   // index of the RN armed for a swap (two-tap), or null
+function setFatigue(key,val){
+  ensureFatigue();
+  if(key==='turnaround')fatigue.turnaround=!!val;
+  else if(key==='maxNights')fatigue.maxNights=Math.max(0,Math.min(31,parseInt(val)||0));
+  else if(key==='minRest')fatigue.minRest=Math.max(1,Math.min(7,parseInt(val)||1));
+  render();saveState();renderSettings();   // per-team setting, not an undoable schedule edit
+}
 function renderSettings(){
   const box=document.getElementById('settBody');if(!box)return;
+  ensureFatigue();
+  const t=document.getElementById('fgTurn');if(t)t.checked=fatigue.turnaround;
+  const mn=document.getElementById('fgMaxN');if(mn)mn.value=fatigue.maxNights;
+  const rs=document.getElementById('fgRest');if(rs)rs.value=fatigue.minRest;
   const {a,b}=settLists();
   const T=turnFor(cycleOffset);
   const lbl=document.getElementById('settCyc');
@@ -2945,7 +3005,7 @@ function downloadFairnessPDF(){
 
 /* ---------- init ---------- */
 loadState();
-syncN();ensureIds();ensureStaff();   // fresh installs (no saved state) still need stable ids + staff rows
+syncN();ensureIds();ensureStaff();ensureFatigue();   // fresh installs (no saved state) still need stable ids + staff rows
 applyTheme();
 lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it
