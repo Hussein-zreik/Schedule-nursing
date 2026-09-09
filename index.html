@@ -43,8 +43,6 @@
   --s8-bg:#122a18;--s8-fg:#6dd48a;--s8-bd:#1e4527;
   --s9-bg:#102415;--s9-fg:#5cc47a;--s9-bd:#1a3a22;
   --s10-bg:#2a1c05;--s10-fg:#e0a638;--s10-bd:#453009;
-  --e10-bg:#0c2a2a;--e10-fg:#5fcfc4;--e10-bd:#14494a;
-  --s11-bg:#16193a;--s11-fg:#8f9cf0;--s11-bd:#262c5a;
   --n7-bg:#231436;--n7-fg:#b394ec;--n7-bd:#39204f;
   --hol-bg:#331214;--hol-fg:#f28585;--hol-bd:#5e2224;
   --vac-bg:#0f2434;--vac-fg:#7fd0f2;--vac-bd:#1c4a66;
@@ -71,8 +69,6 @@
   --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
   --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
   --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
-  --e10-bg:#a8dede;--e10-fg:#0c4a4a;--e10-bd:#7ec9c9;
-  --s11-bg:#b6bdf7;--s11-fg:#26307a;--s11-bd:#8c96e8;
   --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
   --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
   --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
@@ -128,8 +124,6 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-S8{background:var(--s8-bg);color:var(--s8-fg);border-color:var(--s8-bd)}
 .b-S9{background:var(--s9-bg);color:var(--s9-fg);border-color:var(--s9-bd)}
 .b-S10{background:var(--s10-bg);color:var(--s10-fg);border-color:var(--s10-bd)}
-.b-E10{background:var(--e10-bg);color:var(--e10-fg);border-color:var(--e10-bd)}
-.b-S11{background:var(--s11-bg);color:var(--s11-fg);border-color:var(--s11-bd)}
 .b-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .b-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
@@ -222,8 +216,6 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .sc.s-S8{background:var(--s8-bg);color:var(--s8-fg);border-color:var(--s8-bd)}
 .sc.s-S9{background:var(--s9-bg);color:var(--s9-fg);border-color:var(--s9-bd)}
 .sc.s-S10{background:var(--s10-bg);color:var(--s10-fg);border-color:var(--s10-bd)}
-.sc.s-E10{background:var(--e10-bg);color:var(--e10-fg);border-color:var(--e10-bd)}
-.sc.s-S11{background:var(--s11-bg);color:var(--s11-fg);border-color:var(--s11-bd)}
 .sc.s-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .sc.s-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .sc.s-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
@@ -305,6 +297,8 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .staff-cfg-row{display:flex;align-items:center;gap:6px;margin:4px 0 4px 12px}
 .staff-label-in{background:var(--field);border:1px solid var(--border-2);border-radius:var(--r-sm);color:var(--text);padding:4px 8px;font-family:var(--font-sans);font-size:var(--fs-sm);min-width:0;flex:1;max-width:220px}
 .staff-cfg-head .staff-label-in{font-weight:600;max-width:180px}
+.shift-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.shift-color{width:38px;height:28px;padding:0;border:1px solid var(--border-2);border-radius:var(--r-sm);background:var(--field);cursor:pointer}
 .sett-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);max-height:58vh;overflow:auto}
 @media (max-width:820px){.sett-grid{grid-template-columns:1fr}}
 .sett-col h4{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
@@ -364,8 +358,6 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .mbtn[data-s=HOL].sel{border-color:var(--hol-bd);background:var(--hol-bg);color:var(--hol-fg)}
 .mbtn[data-s=VAC].sel{border-color:var(--vac-bd);background:var(--vac-bg);color:var(--vac-fg)}
 .mbtn[data-s=REQ].sel{border-color:var(--req-bd);background:var(--req-bg);color:var(--req-fg)}
-.mbtn[data-s=E10].sel{border-color:var(--e10-bd);background:var(--e10-bg);color:var(--e10-fg)}
-.mbtn[data-s=S11].sel{border-color:var(--s11-bd);background:var(--s11-bg);color:var(--s11-fg)}
 .mbtn[data-s=N7].sel{border-color:var(--n7-bd);background:var(--n7-bg);color:var(--n7-fg)}
 .mbtn[data-s=OFF].sel{border-color:var(--border-3);background:var(--field-2);color:var(--muted)}
 .mactions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
@@ -451,8 +443,6 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
     --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
     --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
-    --e10-bg:#a8dede;--e10-fg:#0c4a4a;--e10-bd:#7ec9c9;
-    --s11-bg:#b6bdf7;--s11-fg:#26307a;--s11-bd:#8c96e8;
     --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
     --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
     --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
@@ -593,8 +583,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <span class="leg"><span class="leg-badge b-S8">S8</span>Eve 8</span>
   <span class="leg"><span class="leg-badge b-S9">S9</span>Eve 9</span>
   <span class="leg"><span class="leg-badge b-S10">S10</span>Eve 10</span>
-  <span class="leg"><span class="leg-badge b-E10">E10</span>10a–6p</span>
-  <span class="leg"><span class="leg-badge b-S11">S11</span>11a–11p</span>
+  <span id="legCustom"></span>
   <span class="leg"><span class="leg-badge b-N7">N7</span>Night</span>
   <span class="leg"><span class="leg-badge b-HOL">Hol</span>Holiday</span>
   <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
@@ -862,23 +851,65 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 
 <script>
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const DAY_TYPES=['D6','D7','S8','S9','S10'];   // pool the auto-generator fills from
-// E10 (10a-6p) and S11 (11a-11p) are extra day/evening shifts placed by hand or
-// by request — not part of the auto rotation, but they count as working shifts.
-const DAY_SHIFT_TYPES=['D6','D7','S8','S9','S10','E10','S11']; // all non-night work (for the "Day shifts" tally)
-const ALL_TYPES=['D6','D7','S8','S9','S10','E10','S11','N7','HOL','VAC','REQ','OFF'];
-const WORK_TYPES=new Set(['D6','D7','S8','S9','S10','E10','S11','N7']); // actual working shifts (drives scheduling)
-const ENTRY_TYPES=new Set(['D6','D7','S8','S9','S10','E10','S11','N7','HOL','VAC']); // scheduled entries incl. holiday/vacation (drives W1/W2/Total counts)
-const LABELS_M={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',E10:'E10 · 10a–6p',S11:'S11 · 11a–11p',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
-// how the cell picker groups the shift types (for faster, less error-prone entry)
-const SHIFT_GROUPS=[
-  {label:'Day',      types:['D6','D7']},
-  {label:'Evening',  types:['S8','S9','S10']},
-  {label:'Extended', types:['E10','S11']},
-  {label:'Night',    types:['N7']},
-  {label:'Leave',    types:['HOL','VAC']},
-  {label:'Off',      types:['REQ','OFF']}
+const DAY_TYPES=['D6','D7','S8','S9','S10'];   // CORE pool the auto-generator fills from (never custom)
+const CORE_DAY=['D6','D7','S8','S9','S10'];
+const CORE_LABELS={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
+// user-defined EXTRA shift types — placed by hand, count as working shifts, but
+// never used by the automatic weekday fill. Defaults reproduce E10 and S11.
+let customShifts=[
+  {code:'E10',label:'10a–6p',color:'#5fcfc4'},
+  {code:'S11',label:'11a–11p',color:'#8f9cf0'}
 ];
+// the following are DERIVED from CORE + customShifts by rebuildShifts()
+let DAY_SHIFT_TYPES=[],ALL_TYPES=[],REQ_TYPES=[],WORK_TYPES=new Set(),ENTRY_TYPES=new Set(),LABELS_M={},SHIFT_GROUPS=[];
+function ensureCustomShifts(){
+  if(!Array.isArray(customShifts))customShifts=[];
+  const core=new Set([...CORE_DAY,'N7','HOL','VAC','REQ','OFF']),seen=new Set();
+  customShifts=customShifts.filter(s=>s&&/^[A-Za-z0-9]{1,4}$/.test(s.code)&&!core.has(s.code)&&!seen.has(s.code)&&seen.add(s.code))
+    .map(s=>({code:s.code,label:String(s.label||s.code).slice(0,24),color:/^#[0-9a-fA-F]{6}$/.test(s.color)?s.color:'#8f9cf0'}));
+}
+function rebuildShifts(){
+  ensureCustomShifts();
+  const cc=customShifts.map(s=>s.code);
+  DAY_SHIFT_TYPES=[...CORE_DAY,...cc];
+  WORK_TYPES=new Set([...CORE_DAY,...cc,'N7']);
+  ENTRY_TYPES=new Set([...CORE_DAY,...cc,'N7','HOL','VAC']);
+  ALL_TYPES=[...CORE_DAY,...cc,'N7','HOL','VAC','REQ','OFF'];
+  REQ_TYPES=[...CORE_DAY,...cc,'N7','REQ','OFF','VAC','HOL'];
+  LABELS_M=Object.assign({},CORE_LABELS);for(const s of customShifts)LABELS_M[s.code]=s.code+' · '+s.label;
+  SHIFT_GROUPS=[
+    {label:'Day',types:['D6','D7']},
+    {label:'Evening',types:['S8','S9','S10']},
+    ...(cc.length?[{label:'Extended',types:cc}]:[]),
+    {label:'Night',types:['N7']},
+    {label:'Leave',types:['HOL','VAC']},
+    {label:'Off',types:['REQ','OFF']}
+  ];
+  injectShiftCSS();
+}
+// screen colours for custom shifts, injected as a live <style> (8-digit hex alpha)
+function injectShiftCSS(){
+  let css='';
+  for(const s of customShifts){const c=s.code,col=s.color;
+    css+=`.leg-badge.b-${c},.rr-badge.b-${c}{background:${col}22;color:${col};border-color:${col}66}`;
+    css+=`.sc.s-${c}{background:${col}22;color:${col};border-color:${col}55}`;
+    css+=`.mbtn[data-s=${c}].sel{background:${col}22;color:${col};border-color:${col}}`;}
+  let el=document.getElementById('customShiftCSS');
+  if(!el){el=document.createElement('style');el.id='customShiftCSS';(document.head||document.documentElement).appendChild(el);}
+  el.textContent=css;
+}
+rebuildShifts();
+function renderLegend(){
+  const el=document.getElementById('legCustom');if(!el)return;
+  el.innerHTML=customShifts.map(s=>`<span class="leg"><span class="leg-badge b-${s.code}">${escapeHtml(s.code)}</span>${escapeHtml(s.label)}</span>`).join('');
+}
+// derive export colours (Excel ARGB, PDF RGB) for a custom shift from its colour
+function hex2rgb(h){h=String(h).replace('#','');return [parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0];}
+function mixRgb(a,b,t){return a.map((c,i)=>Math.round(c+(b[i]-c)*t));}
+function customPair(code){const s=customShifts.find(x=>x.code===code);if(!s)return null;const rgb=hex2rgb(s.color);
+  return {bg:mixRgb(rgb,[255,255,255],0.82),fg:mixRgb(rgb,[0,0,0],0.42)};}
+function xlCustom(code){const p=customPair(code);if(!p)return null;const a=r=>'FF'+r.map(c=>c.toString(16).padStart(2,'0')).join('').toUpperCase();return [a(p.bg),a(p.fg)];}
+function pdfCustom(code){const p=customPair(code);if(!p)return null;return [p.bg,p.fg];}
 let DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}
@@ -979,7 +1010,7 @@ function saveState(){
       names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
       startDate:document.getElementById('startDate').value||startDateStr,
       theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue,
-      dailyMin:DAILY_MIN,defHol,defVac,staffLabels
+      dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts
     }));
   }catch(e){/* storage unavailable */}
   if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
@@ -1016,6 +1047,8 @@ function applyStateObject(s){
   if(typeof s.defHol==='number')defHol=s.defHol;
   if(typeof s.defVac==='number')defVac=s.defVac;
   if(s.staffLabels&&typeof s.staffLabels==='object')staffLabels=s.staffLabels;
+  if(Array.isArray(s.customShifts))customShifts=s.customShifts;
+  rebuildShifts();
   if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
   if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;
   ensureStaff();
@@ -1050,7 +1083,7 @@ function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
     overrides,committedCycles,cycleSeeds,frozen,fatigue,
-    dailyMin:DAILY_MIN,defHol,defVac,staffLabels};
+    dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts};
 }
 function loadState(){
   try{
@@ -2040,19 +2073,44 @@ function minSet(d,type,val){
 }
 function minReset(){DAILY_MIN=JSON.parse(JSON.stringify(DEFAULT_MIN));render();saveState();renderSettings();toast('Minimums reset to defaults');}
 
-/* ===== Settings tab: Shifts (custom shift editor — next stage) ===== */
+/* ===== Settings tab: Shifts (custom extra shift types) ===== */
 function renderShiftTab(){
   const box=document.getElementById('settShiftBody');if(!box)return;
-  const chip=c=>`<span class="leg-badge b-${c}">${c}</span> ${escapeHtml(LABELS_M[c]||c)}`;
-  box.innerHTML=`<div class="fatigue-box"><h4 class="fatigue-h">Current shift types</h4>
-    <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">
-      <div>Core (used by the automatic fill): ${['D6','D7','S8','S9','S10'].map(chip).join(' &nbsp; ')}</div>
-      <div>Night: ${chip('N7')}</div>
-      <div>Extra (placed by hand): ${['E10','S11'].map(chip).join(' &nbsp; ')}</div>
-      <div>Leave / off: ${['HOL','VAC','REQ','OFF'].map(chip).join(' &nbsp; ')}</div>
-    </div>
-    <div class="fatigue-sub" style="margin-top:10px">Adding, renaming and re-colouring your own extra shift types here is the next update.</div>
-  </div>`;
+  let h='<div class="fatigue-box"><h4 class="fatigue-h">Core shifts <span class="fatigue-sub">(fixed — used by the automatic weekday fill)</span></h4>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:var(--fs-sm)">'+['D6','D7','S8','S9','S10','N7'].map(c=>`<span class="leg-badge b-${c}">${c}</span>`).join('')+'</div></div>';
+  h+='<div class="fatigue-box" style="margin-top:var(--sp-3)"><h4 class="fatigue-h">Your extra shifts <span class="fatigue-sub">(placed by hand; appear in the picker, legend &amp; exports)</span></h4>';
+  if(!customShifts.length)h+='<div class="req-empty">None yet — add one below.</div>';
+  customShifts.forEach((s,i)=>{
+    h+=`<div class="shift-row">
+      <span class="leg-badge b-${s.code}" style="min-width:34px;text-align:center">${escapeHtml(s.code)}</span>
+      <input class="staff-label-in" value="${escapeHtml(s.label)}" onchange="setShiftLabel(${i},this.value)" placeholder="hours e.g. 10a–6p">
+      <input type="color" value="${s.color}" onchange="setShiftColor(${i},this.value)" title="Colour" class="shift-color">
+      <button class="sett-btn del" onclick="removeShift(${i})" title="Remove">✕</button>
+    </div>`;
+  });
+  h+=`<div class="shift-row" style="margin-top:10px">
+      <input class="staff-label-in" id="newShiftCode" placeholder="code" maxlength="4" style="max-width:80px;text-transform:uppercase">
+      <input class="staff-label-in" id="newShiftLabel" placeholder="hours e.g. 6a–2p">
+      <input type="color" id="newShiftColor" value="#4aa3df" class="shift-color">
+      <button class="btn sm" onclick="addShift()">+ Add</button>
+    </div><div id="shiftMsg" class="fatigue-sub" style="margin-top:6px"></div></div>`;
+  box.innerHTML=h;
+}
+function setShiftLabel(i,v){if(!customShifts[i])return;customShifts[i].label=String(v).slice(0,24)||customShifts[i].code;rebuildShifts();render();saveState();renderSettings();}
+function setShiftColor(i,v){if(!customShifts[i])return;if(/^#[0-9a-fA-F]{6}$/.test(v))customShifts[i].color=v;rebuildShifts();render();saveState();renderSettings();}
+function removeShift(i){const s=customShifts[i];if(!s)return;
+  if(!confirm(`Remove shift ${s.code}? Cells already set to ${s.code} keep the code but lose its colour.`))return;
+  customShifts.splice(i,1);rebuildShifts();render();saveState();renderSettings();}
+function addShift(){
+  const code=(document.getElementById('newShiftCode').value||'').trim().toUpperCase();
+  const label=(document.getElementById('newShiftLabel').value||'').trim();
+  const color=document.getElementById('newShiftColor').value||'#4aa3df';
+  const msg=document.getElementById('shiftMsg');
+  if(!/^[A-Za-z0-9]{1,4}$/.test(code)){msg.textContent='Code must be 1–4 letters/numbers, no spaces.';return;}
+  const taken=new Set([...CORE_DAY,'N7','HOL','VAC','REQ','OFF',...customShifts.map(s=>s.code)]);
+  if(taken.has(code)){msg.textContent=`"${code}" is already a shift code.`;return;}
+  customShifts.push({code,label:label||code,color});
+  rebuildShifts();render();saveState();renderSettings();
 }
 
 /* ===== Settings tab: Support staff ===== */
@@ -2294,7 +2352,7 @@ function autoOffset(anchorISO,today){
 /* ---------- requests (locked duties / offs / vacations) ---------- */
 let reqOffset=0;                 // which fortnight the modal is showing
 let reqSelDays=new Set();        // day-indexes (0-13) selected for the new request
-const REQ_TYPES=['D6','D7','S8','S9','S10','E10','S11','N7','REQ','OFF','VAC','HOL'];
+// REQ_TYPES is derived by rebuildShifts() (core + custom shifts)
 function reqDates(){
   const si=document.getElementById('startDate').value;
   const base=addDays(getMonday(si?new Date(si):new Date()),reqOffset*14);
@@ -2420,7 +2478,7 @@ function reqClearAll(){
   render();saveState();renderRequests();toast('All requests cleared');
 }
 
-function render(){buildSchedule();renderTable();updateModeUI();updateUndoUI();applyTrackerState();applyCycInfoState();renderCycleInfo();}
+function render(){buildSchedule();renderTable();renderLegend();updateModeUI();updateUndoUI();applyTrackerState();applyCycInfoState();renderCycleInfo();}
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
@@ -2708,8 +2766,7 @@ const XL_PAL={
     title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
     S:{D6:['FFDBEAFB','FF12558F'],D7:['FFE0EDFD','FF175E9E'],S8:['FFD9EFD9','FF1A7233'],
-       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],E10:['FFCDECEC','FF0C4A4A'],
-       S11:['FFDDE1FB','FF26307A'],N7:['FFE9DDF8','FF623AB4'],
+       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],N7:['FFE9DDF8','FF623AB4'],
        HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1'],REQ:['FFFBE0F0','FFB03A80']}
   },
   dark:{
@@ -2717,8 +2774,7 @@ const XL_PAL={
     title:'FF0A0A0A',titleFg:'FFF0EDE8',count:'FF0D0D0D',countFg:'FF8A8A8A',
     border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
     S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
-       S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],E10:['FF0C2A2A','FF5FCFC4'],
-       S11:['FF16193A','FF8F9CF0'],N7:['FF1A0A2E','FFA07DE0'],
+       S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
        HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0'],REQ:['FF2A0A1E','FFE07DBF']}
   }
 };
@@ -2761,7 +2817,7 @@ async function exportExcel(){
       for(let d=0;d<14;d++){
         const cell=ws.getCell(r,3+d);const s=sh[i][d];
         cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
-        const sc=P.S[s];
+        const sc=P.S[s]||xlCustom(s);
         if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
         else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
       }
@@ -2808,7 +2864,7 @@ async function exportExcel(){
           const s=staffShiftAt(p.id,days[d]);
           const cell=ws.getCell(sr,3+d);
           cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
-          const sc=P.S[s];
+          const sc=P.S[s]||xlCustom(s);
           if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
           else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
         }
@@ -2888,8 +2944,7 @@ function downloadBlob(blob,name){
 const PDF_COL={
   D6:[[169,208,245],[12,69,118]],D7:[[182,216,247],[14,78,130]],
   S8:[[168,221,168],[20,91,40]],S9:[[180,224,176],[26,95,35]],
-  S10:[[242,207,133],[106,66,0]],E10:[[168,222,222],[12,74,74]],
-  S11:[[182,189,247],[38,48,122]],N7:[[205,180,239],[74,42,144]],
+  S10:[[242,207,133],[106,66,0]],N7:[[205,180,239],[74,42,144]],
   HOL:[[243,180,180],[146,31,31]],VAC:[[169,216,242],[10,85,127]],
   REQ:[[243,182,218],[138,43,98]]
 };
@@ -2960,7 +3015,7 @@ function exportPDF(){
           data.cell.styles.fillColor=[238,240,244];data.cell.styles.textColor=[75,83,95];
           data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';
         }
-        else if(c>=2&&c<=15){const col=PDF_COL[data.cell.raw];
+        else if(c>=2&&c<=15){const col=PDF_COL[data.cell.raw]||pdfCustom(data.cell.raw);
           if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}
         else if(c>=16){data.cell.styles.fillColor=[238,240,244];data.cell.styles.fontStyle='bold';}
         if(isStaff&&c===0)data.cell.styles.halign='left';
