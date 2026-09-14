@@ -34,6 +34,7 @@
   --warn:#e0a020;--neg:#f0605f;
   --row-hover:#1a1f28;
   --today-bg:rgba(122,184,245,0.10);--today-line:#6aa9ff;
+  --flag:#ff5a4d;--flag-line:rgba(255,90,77,0.55);
   --grid-bg:#0f1218;
   --shadow:0 12px 40px rgba(0,0,0,.55);
   --d6-bg:#12263d;--d6-fg:#7ab8f5;--d6-bd:#1e3f63;
@@ -57,6 +58,7 @@
   --warn:#8a5200;--neg:#bd2b2b;
   --row-hover:#f1f4f8;
   --today-bg:rgba(21,96,180,0.08);--today-line:#1560b4;
+  --flag:#d93a2b;--flag-line:rgba(217,58,43,0.5);
   --grid-bg:#ffffff;
   --sh-1:0 1px 2px rgba(20,30,50,.10);--sh-2:0 12px 40px rgba(20,30,50,.20);
   --focus:#1560b4;
@@ -192,6 +194,10 @@ thead tr th.is-today .dname,thead tr th.is-today .ddate{color:var(--today-line)}
 .today-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--today-line);margin-top:1px}
 tbody tr td.is-today{background:var(--today-bg)}
 tbody tr:hover td.is-today{background:var(--today-bg)}
+/* flagged cell: manager marked this to notice — corner triangle + soft outline */
+tbody tr td.flagged{position:relative;box-shadow:inset 0 0 0 2px var(--flag-line)}
+tbody tr td.flagged::after{content:"";position:absolute;top:0;right:0;border-width:0 11px 11px 0;border-style:solid;border-color:transparent var(--flag) transparent transparent;pointer-events:none}
+#flagCellBtn.on{color:#fff;background:var(--flag);border-color:var(--flag)}
 tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s}
 tbody tr:hover{background:var(--row-hover)}
 tbody tr td{padding:6px 8px;text-align:center;vertical-align:middle}
@@ -588,6 +594,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <span class="leg"><span class="leg-badge b-OFF">—</span>Off</span>
   <span class="leg" style="margin-left:8px"><span style="color:var(--grpA);font-weight:500">&#9632; Group A</span></span>
   <span class="leg"><span style="color:var(--grpB);font-weight:500">&#9632; Group B</span></span>
+  <span class="leg"><span style="color:var(--flag);font-weight:600">&#9873; Flagged</span></span>
 </div>
 
 <div class="summary-row" id="sumBar"></div>
@@ -798,7 +805,10 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     <h3 id="mTitle">Edit shift</h3>
     <div class="mopts" id="mOpts"></div>
     <div class="mactions" style="justify-content:space-between">
-      <button class="btn" id="resetCellBtn" onclick="resetCell()" title="Remove this entry and let the schedule auto-fill this cell">Reset to auto</button>
+      <span style="display:flex;gap:8px">
+        <button class="btn" id="flagCellBtn" onclick="toggleFlagBtn()" title="Flag this cell so it stands out on the schedule">⚐ Flag</button>
+        <button class="btn" id="resetCellBtn" onclick="resetCell()" title="Remove this entry and let the schedule auto-fill this cell">Reset to auto</button>
+      </span>
       <span style="display:flex;gap:8px">
         <button class="btn" onclick="closeCell()">Cancel</button>
         <button class="btn accent" onclick="saveCell()">Save</button>
@@ -996,8 +1006,13 @@ function ensureFatigue(){if(!fatigue||typeof fatigue!=='object')fatigue={};
   if(typeof fatigue.turnaround!=='boolean')fatigue.turnaround=true;
   if(!Number.isInteger(fatigue.maxNights))fatigue.maxNights=8;
   if(!Number.isInteger(fatigue.minRest))fatigue.minRest=1;}
+let flags={};     // { 'YYYY-MM-DD': { id: true } } — cells the manager flagged to notice; id = RN stableId or staff id
+function isFlagged(id,dateObj){const o=flags[isoKey(dateObj)];return !!(o&&o[id]);}
+function setFlag(id,dateObj,on){const k=isoKey(dateObj);
+  if(on){if(!flags[k])flags[k]={};flags[k][id]=true;}
+  else if(flags[k]){delete flags[k][id];if(!Object.keys(flags[k]).length)delete flags[k];}}
 let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
-let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null;
+let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null,mFlag=false;
 const HIST_MAX=100;
 
 /* ---------- persistence ---------- */
@@ -1006,7 +1021,7 @@ function saveState(){
     localStorage.setItem(STORE_KEY,JSON.stringify({
       names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
       startDate:document.getElementById('startDate').value||startDateStr,
-      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue,
+      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue,flags,
       dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts
     }));
   }catch(e){/* storage unavailable */}
@@ -1039,6 +1054,7 @@ function applyStateObject(s){
   if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
   if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
   if(s.frozen&&typeof s.frozen==='object')frozen=s.frozen; else frozen={};
+  if(s.flags&&typeof s.flags==='object')flags=s.flags; else flags={};
   if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();
   if(Array.isArray(s.dailyMin)&&s.dailyMin.length===7&&s.dailyMin.every(x=>x&&typeof x==='object'))DAILY_MIN=s.dailyMin;
   if(typeof s.defHol==='number')defHol=s.defHol;
@@ -1079,7 +1095,7 @@ function migrateOverridesToIds(){
 function cloudStateObj(){
   return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
     startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,committedCycles,cycleSeeds,frozen,fatigue,
+    overrides,committedCycles,cycleSeeds,frozen,fatigue,flags,
     dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts};
 }
 function loadState(){
@@ -1234,7 +1250,8 @@ function snapshot(){
           // fortnight marked generated, and undo of a Clear lost its seed.
           committedCycles:JSON.parse(JSON.stringify(committedCycles)),
           cycleSeeds:JSON.parse(JSON.stringify(cycleSeeds)),
-          frozen:JSON.parse(JSON.stringify(frozen))};
+          frozen:JSON.parse(JSON.stringify(frozen)),
+          flags:JSON.parse(JSON.stringify(flags))};
 }
 function restore(s){
   names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
@@ -1248,6 +1265,7 @@ function restore(s){
   if(s.committedCycles)committedCycles=JSON.parse(JSON.stringify(s.committedCycles));
   if(s.cycleSeeds)cycleSeeds=JSON.parse(JSON.stringify(s.cycleSeeds));
   if(s.frozen)frozen=JSON.parse(JSON.stringify(s.frozen));
+  if(s.flags)flags=JSON.parse(JSON.stringify(s.flags));
   ensureStaff();
   normalizeOrder();
 }
@@ -1718,7 +1736,7 @@ function renderTable(){
     if(!ok)allOk=false;
     const wc=ok?'wk-ok':'wk-warn';
     h+=`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,${pos})"><td class="rn-col"><span class="drag-h" draggable="true" ondragstart="rowDragStart(event,${pos})" ondragend="rowDragEnd()" title="Drag to reorder">⠿</span><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
-    for(let d=0;d<14;d++){const s=sh[i][d];h+=`<td class="${T(d).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+    for(let d=0;d<14;d++){const s=sh[i][d];const fl=isFlagged(rid(i),days[d])?' flagged':'';h+=`<td class="${(T(d)+fl).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
   });
 
@@ -1744,7 +1762,8 @@ function renderTable(){
       for(let d=0;d<14;d++){
         const s=staffShiftAt(p.id,days[d]);
         if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
-        h+=`<td class="${T(d).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+        const fl=isFlagged(p.id,days[d])?' flagged':'';
+        h+=`<td class="${(T(d)+fl).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
       }
       h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
     }
@@ -2578,6 +2597,7 @@ function openCellM(ri,di){
   const k=isoKey(sched.days[di]);
   const hasEntry=overrides[k]&&overrides[k][rid(ri)]!==undefined;
   document.getElementById('resetCellBtn').style.display=hasEntry?'':'none';
+  mFlag=isFlagged(rid(ri),sched.days[di]);updateFlagBtn();
   document.getElementById('cellModal').classList.add('open');
 }
 // support-staff cell: same picker, but written to staffShifts (no RN rules involved)
@@ -2587,8 +2607,12 @@ function openStaffCellM(id,di){
   document.getElementById('mTitle').textContent=`${p.name} · ${DAYS[di%7]} ${fmt(sched.days[di])}`;
   document.getElementById('mOpts').innerHTML=shiftOptionsHTML();
   document.getElementById('resetCellBtn').style.display='none';   // staff cells are already manual
+  mFlag=isFlagged(id,sched.days[di]);updateFlagBtn();
   document.getElementById('cellModal').classList.add('open');
 }
+function updateFlagBtn(){const b=document.getElementById('flagCellBtn');if(!b)return;
+  b.classList.toggle('on',mFlag);b.textContent=mFlag?'⚑ Flagged':'⚐ Flag';}
+function toggleFlagBtn(){mFlag=!mFlag;updateFlagBtn();}
 // grouped shift buttons for the cell/staff picker — shares one builder
 function shiftOptionsHTML(){
   return SHIFT_GROUPS.map(g=>
@@ -2597,24 +2621,38 @@ function shiftOptionsHTML(){
     `</div></div>`).join('');
 }
 function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
+// undo-history label for a cell edit: the shift change if any, otherwise the flag change
+function cellHistLabel(nm,d,old,shiftChg,flagChg){
+  const dk=`${DAYS[d%7]} ${fmt(sched.days[d])}`;
+  if(shiftChg)return `${nm} · ${dk}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`;
+  return `${nm} · ${dk}: ${mFlag?'flagged ⚑':'flag removed'}`;
+}
 function saveCell(){
   if(mStaffId!==null&&mDay!==null){          // support-staff cell
     const p=staff.find(x=>x.id===mStaffId);
-    const old=staffShiftAt(mStaffId,sched.days[mDay]);
-    if(old!==mSel){
+    const dObj=sched.days[mDay];
+    const old=staffShiftAt(mStaffId,dObj);
+    const flagChg=isFlagged(mStaffId,dObj)!==mFlag;
+    if(old!==mSel||flagChg){
       const b=snapshot();
-      pushHistory(`${p?p.name:'Staff'} · ${DAYS[mDay%7]} ${fmt(sched.days[mDay])}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`,b);
-      setStaffShift(mStaffId,sched.days[mDay],mSel);
+      pushHistory(cellHistLabel(p?p.name:'Staff',mDay,old,old!==mSel,flagChg),b);
+      if(old!==mSel)setStaffShift(mStaffId,dObj,mSel);
+      if(flagChg)setFlag(mStaffId,dObj,mFlag);
     }
     closeCell();renderTable();saveState();   // staff rows don't affect the RN schedule
     return;
   }
   if(mRn!==null&&mDay!==null){
+    const dObj=sched.days[mDay];
     const old=sched.sh[mRn][mDay];
-    if(old!==mSel){
+    const shiftChg=old!==mSel;
+    const flagChg=isFlagged(rid(mRn),dObj)!==mFlag;
+    if(shiftChg||flagChg){
       const b=snapshot();
-      const dk=`${DAYS[mDay%7]} ${fmt(sched.days[mDay])}`;
-      pushHistory(`${names[mRn]} · ${dk}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`,b);
+      pushHistory(cellHistLabel(names[mRn],mDay,old,shiftChg,flagChg),b);
+      if(flagChg)setFlag(rid(mRn),dObj,mFlag);
+    }
+    if(shiftChg){
       const k=isoKey(sched.days[mDay]);
       const gkCur=cycleStartISO(cycleOffset);
       if(frozen[gkCur]){
