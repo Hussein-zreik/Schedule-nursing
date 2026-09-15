@@ -16,6 +16,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         run: npm install
+      - name: Lint (bug-catching rules)
+        run: npm run lint
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run the rule audit

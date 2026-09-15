@@ -861,7 +861,8 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 
 <script>
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const DAY_TYPES=['D6','D7','S8','S9','S10'];   // CORE pool the auto-generator fills from (never custom)
+// the five core day shifts — the pool the auto-generator fills from (never custom),
+// the columns of the staffing-minimums grid, and the base of every derived table
 const CORE_DAY=['D6','D7','S8','S9','S10'];
 const CORE_LABELS={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
 // user-defined EXTRA shift types — placed by hand, count as working shifts, but
@@ -925,7 +926,6 @@ let DAILY_MIN=[
   {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}
 ];
 const DEFAULT_MIN=JSON.parse(JSON.stringify(DAILY_MIN));   // for "reset to defaults"
-const MIN_TYPES=['D6','D7','S8','S9','S10'];               // editable core day-shift columns
 let defHol=14,defVac=21;                                   // default Hol/Vac balances for new RNs
 let staffLabels={};                                        // { groupKey: customLabel } — overrides STAFF_GROUPS labels
 let N=19; // number of RNs — kept in sync with names.length
@@ -1018,21 +1018,49 @@ let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the c
 let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null,mFlag=false;
 const HIST_MAX=100;
 
-/* ---------- persistence ---------- */
-function saveState(){
-  try{
-    localStorage.setItem(STORE_KEY,JSON.stringify({
-      names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
-      startDate:document.getElementById('startDate').value||startDateStr,
-      theme,trackerOpen,cycInfoOpen,overrides,history,manualMode,committedCycles,cycleSeeds,frozen,fatigue,flags,
-      dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts
-    }));
-  }catch(e){/* storage unavailable */}
-  if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
-}
-// apply a saved/synced state object to the app's shared data (theme excluded — that's per-device)
-function applyStateObject(s){
-  if(!s||typeof s!=='object')return;
+/* ---------- persistence: one registry is the single source of truth ----------
+   Every persisted field is declared exactly once in PERSIST, so adding new state
+   can no longer drift across save / load / cloud-sync / undo (the bug where a
+   field saved locally but never synced or never undid). Membership flags:
+     sync   -> shared data: written to localStorage AND pushed to the cloud
+     device -> per-device: localStorage only (never synced — undo stack, theme, UI)
+     undo   -> captured in snapshot()/restore() for the change-history
+   Accessors:  get() reads the live value; apply(s) writes it back WITH validation
+   on a cloud/backup load; set(v) writes it back verbatim (deep-cloned) on undo.
+   Fields without apply (ids, roster members) are handled by the finalize block in
+   applyStateObject, which is order-sensitive and stays explicit. */
+const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+const PERSIST=[
+  {k:'names',      sync:1,undo:1,get:()=>names,           apply:applyRoster,                                                                   set:v=>{names=[...v];}},
+  {k:'groups',     sync:1,undo:1,get:()=>groups,          /* written by applyRoster */                                                          set:v=>{groups=[...v];}},
+  {k:'holBal',     sync:1,undo:1,get:()=>holBal,          /* written by applyRoster */                                                          set:v=>{holBal=[...v];}},
+  {k:'vacBal',     sync:1,undo:1,get:()=>vacBal,          /* written by applyRoster */                                                          set:v=>{vacBal=[...v];}},
+  {k:'order',      sync:1,undo:1,get:()=>order,           apply:s=>{if(Array.isArray(s.order))order=s.order.slice();},                          set:v=>{order=Array.isArray(v)?[...v]:[];}},
+  {k:'ids',        sync:1,undo:1,get:()=>ids,             /* applied by the finalize block (id migration) */                                    set:v=>{ids=Array.isArray(v)?[...v]:[];}},
+  {k:'seed',       sync:1,undo:1,get:()=>seed,            apply:s=>{if(typeof s.seed==='number')seed=s.seed;},                                  set:v=>{seed=v;}},
+  {k:'staff',      sync:1,undo:1,get:()=>staff,           apply:s=>{if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));}, set:v=>{if(Array.isArray(v))staff=clone(v);}},
+  {k:'staffShifts',sync:1,undo:1,get:()=>staffShifts,     apply:s=>{if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;}, set:v=>{staffShifts=clone(v);}},
+  {k:'overrides',  sync:1,undo:1,get:()=>overrides,       apply:s=>{if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;},      set:v=>{overrides=clone(v);}},
+  {k:'committedCycles',sync:1,undo:1,get:()=>committedCycles,apply:s=>{if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;}, set:v=>{committedCycles=clone(v);}},
+  {k:'cycleSeeds', sync:1,undo:1,get:()=>cycleSeeds,      apply:s=>{if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;},  set:v=>{cycleSeeds=clone(v);}},
+  {k:'frozen',     sync:1,undo:1,get:()=>frozen,          apply:s=>{frozen=(s.frozen&&typeof s.frozen==='object')?s.frozen:{};},                set:v=>{frozen=clone(v);}},
+  {k:'flags',      sync:1,undo:1,get:()=>flags,           apply:s=>{flags=(s.flags&&typeof s.flags==='object')?s.flags:{};},                    set:v=>{flags=clone(v);}},
+  {k:'startDate',  sync:1,      get:()=>document.getElementById('startDate').value||startDateStr, apply:s=>{if(typeof s.startDate==='string')startDateStr=s.startDate;}},
+  {k:'fatigue',    sync:1,      get:()=>fatigue,          apply:s=>{if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();}},
+  {k:'dailyMin',   sync:1,      get:()=>DAILY_MIN,        apply:s=>{if(Array.isArray(s.dailyMin)&&s.dailyMin.length===7&&s.dailyMin.every(x=>x&&typeof x==='object'))DAILY_MIN=s.dailyMin;}},
+  {k:'defHol',     sync:1,      get:()=>defHol,           apply:s=>{if(typeof s.defHol==='number')defHol=s.defHol;}},
+  {k:'defVac',     sync:1,      get:()=>defVac,           apply:s=>{if(typeof s.defVac==='number')defVac=s.defVac;}},
+  {k:'staffLabels',sync:1,      get:()=>staffLabels,      apply:s=>{if(s.staffLabels&&typeof s.staffLabels==='object')staffLabels=s.staffLabels;}},
+  {k:'customShifts',sync:1,     get:()=>customShifts,     apply:s=>{if(Array.isArray(s.customShifts))customShifts=s.customShifts;}},
+  // per-device only (never synced): applied by loadState, not applyStateObject
+  {k:'theme',      device:1,    get:()=>theme},
+  {k:'trackerOpen',device:1,    get:()=>trackerOpen},
+  {k:'cycInfoOpen',device:1,    get:()=>cycInfoOpen},
+  {k:'manualMode', device:1,    get:()=>manualMode},
+  {k:'history',    device:1,    get:()=>history},
+];
+// roster fields (names/groups/holBal/vacBal) validate together against names.length
+function applyRoster(s){
   if(Array.isArray(s.names)&&s.names.length>=1){
     names=s.names.map(String);
     N=names.length;
@@ -1044,36 +1072,29 @@ function applyStateObject(s){
     vacBal=(Array.isArray(s.vacBal)?s.vacBal:[]).slice(0,N);
     while(vacBal.length<N)vacBal.push(21);
   }
-  if(typeof s.seed==='number')seed=s.seed;
-  if(typeof s.startDate==='string')startDateStr=s.startDate;
-  if(s.overrides&&typeof s.overrides==='object')overrides=s.overrides;
-  // history is NOT taken from incoming state: it is a per-device undo stack and
-  // is no longer synced (see cloudStateObj). Only loadState() restores it, from
-  // this device's own localStorage — a cloud snapshot never overwrites it.
-  if(Array.isArray(s.order))order=s.order.slice();
-  // manualMode is deliberately NOT taken from incoming state: it is a per-device
-  // workflow choice (like the theme). A colleague's device still in Auto used to
-  // flip this device back to Auto mid-schedule. Only loadState() restores it.
-  if(s.committedCycles&&typeof s.committedCycles==='object')committedCycles=s.committedCycles;
-  if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;
-  if(s.frozen&&typeof s.frozen==='object')frozen=s.frozen; else frozen={};
-  if(s.flags&&typeof s.flags==='object')flags=s.flags; else flags={};
-  if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();
-  if(Array.isArray(s.dailyMin)&&s.dailyMin.length===7&&s.dailyMin.every(x=>x&&typeof x==='object'))DAILY_MIN=s.dailyMin;
-  if(typeof s.defHol==='number')defHol=s.defHol;
-  if(typeof s.defVac==='number')defVac=s.defVac;
-  if(s.staffLabels&&typeof s.staffLabels==='object')staffLabels=s.staffLabels;
-  if(Array.isArray(s.customShifts))customShifts=s.customShifts;
-  rebuildShifts();
-  if(Array.isArray(s.staff))staff=s.staff.map(x=>({id:String(x.id),g:String(x.g),name:String(x.name)}));
-  if(s.staffShifts&&typeof s.staffShifts==='object')staffShifts=s.staffShifts;
-  ensureStaff();
-  syncN();
-  // ids + one-time migration of index-keyed requests to id-keyed
+}
+function saveState(){
+  try{
+    const o={};
+    for(const f of PERSIST)if(f.sync||f.device)o[f.k]=f.get();
+    localStorage.setItem(STORE_KEY,JSON.stringify(o));
+  }catch(e){/* storage unavailable */}
+  if(typeof cloudSave==='function')cloudSave(); // mirror to the cloud when connected
+}
+// apply a saved/synced state object to the app's shared data. history/manualMode
+// are per-device (see cloudStateObj/loadState), so they are not sync fields and
+// a cloud snapshot never overwrites this device's undo stack or workflow mode.
+function applyStateObject(s){
+  if(!s||typeof s!=='object')return;
+  for(const f of PERSIST)if(f.sync&&f.apply)f.apply(s);
+  // order-sensitive finalize (must run after the fields above are in place)
+  rebuildShifts();                              // custom shift types -> derived tables + CSS
+  ensureStaff();                                // seed defaults / drop invalid staff rows
+  syncN();                                      // N follows names.length
   const hadIds=Array.isArray(s.ids)&&s.ids.length>0;
   ids=hadIds?s.ids.slice(0,N).map(String):[];
   ensureIds();
-  if(!hadIds)migrateOverridesToIds();
+  if(!hadIds)migrateOverridesToIds();           // one-time legacy request migration
   normalizeOrder();
 }
 // legacy state stored requests as overrides[date][rowIndex]; convert to
@@ -1096,10 +1117,9 @@ function migrateOverridesToIds(){
 // state snapshots would bloat the Firestore document past its 1 MiB limit and
 // re-upload the whole log on every edit.
 function cloudStateObj(){
-  return {names,groups,holBal,vacBal,order,ids,seed,staff,staffShifts,
-    startDate:document.getElementById('startDate').value||startDateStr,
-    overrides,committedCycles,cycleSeeds,frozen,fatigue,flags,
-    dailyMin:DAILY_MIN,defHol,defVac,staffLabels,customShifts};
+  const o={};
+  for(const f of PERSIST)if(f.sync)o[f.k]=f.get();
+  return o;
 }
 function loadState(){
   try{
@@ -1245,32 +1265,18 @@ function lockInit(){
 lockEl('pw1').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();lockSubmit();}});
 
 /* ---------- change memory (history + undo) ---------- */
+// undo memory: the `undo` fields of PERSIST, deep-cloned (includes the manual-mode
+// bookkeeping committedCycles/cycleSeeds/frozen so undo of Generate/Clear is exact)
 function snapshot(){
-  return {names:[...names],groups:[...groups],holBal:[...holBal],vacBal:[...vacBal],order:[...order],
-          ids:[...ids],seed,overrides:JSON.parse(JSON.stringify(overrides)),
-          staff:JSON.parse(JSON.stringify(staff)),staffShifts:JSON.parse(JSON.stringify(staffShifts)),
-          // Manual-mode bookkeeping — without these, undo of a Generate left the
-          // fortnight marked generated, and undo of a Clear lost its seed.
-          committedCycles:JSON.parse(JSON.stringify(committedCycles)),
-          cycleSeeds:JSON.parse(JSON.stringify(cycleSeeds)),
-          frozen:JSON.parse(JSON.stringify(frozen)),
-          flags:JSON.parse(JSON.stringify(flags))};
+  const o={};
+  for(const f of PERSIST)if(f.undo)o[f.k]=clone(f.get());
+  return o;
 }
 function restore(s){
-  names=[...s.names];groups=[...s.groups];holBal=[...s.holBal];vacBal=[...s.vacBal];
-  seed=s.seed;overrides=JSON.parse(JSON.stringify(s.overrides));
-  order=Array.isArray(s.order)?[...s.order]:[];
-  syncN();
-  ids=Array.isArray(s.ids)?[...s.ids]:[];ensureIds();
-  if(Array.isArray(s.staff))staff=JSON.parse(JSON.stringify(s.staff));
-  if(s.staffShifts)staffShifts=JSON.parse(JSON.stringify(s.staffShifts));
-  // only restore these when present, so pre-existing history entries still load
-  if(s.committedCycles)committedCycles=JSON.parse(JSON.stringify(s.committedCycles));
-  if(s.cycleSeeds)cycleSeeds=JSON.parse(JSON.stringify(s.cycleSeeds));
-  if(s.frozen)frozen=JSON.parse(JSON.stringify(s.frozen));
-  if(s.flags)flags=JSON.parse(JSON.stringify(s.flags));
-  ensureStaff();
-  normalizeOrder();
+  // only restore fields the snapshot actually has, so older history entries
+  // (taken before a field existed) still load
+  for(const f of PERSIST)if(f.undo&&(f.k in s))f.set(s[f.k]);
+  syncN();ensureIds();ensureStaff();normalizeOrder();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
 function pushHistory(label,before){
@@ -1634,7 +1640,7 @@ function computeSchedule(off,applyBoundary=true,forceFill=false){
       const freeWk=weekdayGd.filter(gd=>freeSlot(i,gd));
       const subset=pickWeekdaySubset(sh[i],freeWk,rem,rng);
       if(subset){
-        for(const gd of subset){sh[i][gd]=shuffleArr(DAY_TYPES,rng)[0];assigned[i]++;}
+        for(const gd of subset){sh[i][gd]=shuffleArr(CORE_DAY,rng)[0];assigned[i]++;}
         continue;
       }
       // A REQUEST can make the full quota impossible without exceeding 3
@@ -1647,7 +1653,7 @@ function computeSchedule(off,applyBoundary=true,forceFill=false){
         let done=false;
         for(let k=rem-1;k>=1&&!done;k--){
           const sub=pickWeekdaySubset(sh[i],freeWk,k,rng);
-          if(sub){for(const gd of sub){sh[i][gd]=shuffleArr(DAY_TYPES,rng)[0];assigned[i]++;}done=true;}
+          if(sub){for(const gd of sub){sh[i][gd]=shuffleArr(CORE_DAY,rng)[0];assigned[i]++;}done=true;}
         }
         if(done)continue;
         continue; // nothing can be placed without breaking the streak rule
@@ -1666,7 +1672,7 @@ function computeSchedule(off,applyBoundary=true,forceFill=false){
           if(c.length){pick=c[0];break;}
         }
         if(pick===null)break;
-        sh[i][pick]=shuffleArr(DAY_TYPES,rng)[0];
+        sh[i][pick]=shuffleArr(CORE_DAY,rng)[0];
         assigned[i]++;
       }
     }
@@ -2068,12 +2074,12 @@ function settAdd(g){addRN(g);renderSettings();}
 /* ===== Settings tab: Staffing minimums ===== */
 function renderMinTab(){
   const box=document.getElementById('settMinBody');if(!box)return;
-  let h='<div class="sett-min-grid"><div class="mh rl"></div>'+MIN_TYPES.map(t=>`<div class="mh">${t}</div>`).join('')+'<div class="mh">total</div>';
+  let h='<div class="sett-min-grid"><div class="mh rl"></div>'+CORE_DAY.map(t=>`<div class="mh">${t}</div>`).join('')+'<div class="mh">total</div>';
   for(let d=0;d<7;d++){
     const wknd=d>=5;
     h+=`<div class="rl">${DAYS[d]}</div>`;
     let tot=0;
-    for(const t of MIN_TYPES){
+    for(const t of CORE_DAY){
       const v=(DAILY_MIN[d]&&DAILY_MIN[d][t])||0; tot+=v;
       // weekend day cover is the fixed 2-RN turn: only D7 is meaningful there
       const dis=(wknd&&t!=='D7');

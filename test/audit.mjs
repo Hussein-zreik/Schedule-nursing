@@ -304,6 +304,58 @@ const backup = await page.evaluate(() => {
 console.log('\n--- backup ---');
 check('export/import restores roster and requests', backup === true);
 
+/* ---------------- 4b. state registry round-trips (guards drift) ---------------- */
+const reg2 = await page.evaluate(() => {
+  const out = {};
+  // structural: every sync field must actually serialize into the cloud object
+  const cs = cloudStateObj();
+  out.missingFromCloud = PERSIST.filter(f => f.sync && !(f.k in cs)).map(f => f.k);
+
+  // behavioural: mutate a representative value in each kind of sync field, then
+  // serialize -> wipe -> applyStateObject. Anything the read side forgot to load
+  // fails to come back. This is exactly the class of bug the registry prevents.
+  const days = computeSchedule(0).days;
+  flags = { [isoKey(days[1])]: { [rid(2)]: true } };
+  defHol = 9; defVac = 27;
+  DAILY_MIN[0].D6 = 5;
+  fatigue.maxNights = 3;
+  staffLabels = { AIDE: 'Probe Aids' };
+  overrides = { [isoKey(days[2])]: { [rid(3)]: 'VAC' } };
+  const before = customShifts.length;
+  const saved = JSON.parse(JSON.stringify(cloudStateObj()));
+  // wipe every one
+  flags = {}; defHol = 14; defVac = 21; DAILY_MIN[0].D6 = 2;
+  fatigue.maxNights = 8; staffLabels = {}; overrides = {};
+  applyStateObject(saved); render();
+  out.roundTrip = {
+    flags: !!(flags[isoKey(days[1])] && flags[isoKey(days[1])][rid(2)]),
+    defHol: defHol === 9, defVac: defVac === 27,
+    dailyMin: DAILY_MIN[0].D6 === 5,
+    fatigue: fatigue.maxNights === 3,
+    staffLabels: staffLabels.AIDE === 'Probe Aids',
+    overrides: sched.sh[3][2] === 'VAC',
+    customShifts: customShifts.length === before
+  };
+
+  // undo round-trip: snapshot -> mutate -> restore reverts every undo field
+  overrides = {}; flags = {}; render();
+  const snap = snapshot();
+  flags = { [isoKey(days[4])]: { [rid(1)]: true } };
+  overrides = { [isoKey(days[5])]: { [rid(0)]: 'HOL' } };
+  restore(snap); render();
+  out.undoReverted = Object.keys(flags).length === 0 && Object.keys(overrides).length === 0;
+
+  // reset
+  flags = {}; overrides = {}; defHol = 14; defVac = 21; DAILY_MIN[0].D6 = 2;
+  fatigue.maxNights = 8; staffLabels = {}; render();
+  return out;
+});
+console.log('\n--- state registry round-trips ---');
+check('every sync field serializes to the cloud object', reg2.missingFromCloud.length === 0, 'missing: ' + reg2.missingFromCloud.join(','));
+for (const [k, ok] of Object.entries(reg2.roundTrip))
+  check('sync field survives save->load: ' + k, ok === true);
+check('undo restores every field', reg2.undoReverted === true);
+
 /* ---------------- 5. no runtime errors ---------------- */
 console.log('\n--- runtime ---');
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
