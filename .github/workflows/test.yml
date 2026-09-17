@@ -18,6 +18,8 @@ jobs:
         run: npm install
       - name: Lint (bug-catching rules)
         run: npm run lint
+      - name: Engine unit tests (fast, no browser)
+        run: npm run test:unit
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run the rule audit

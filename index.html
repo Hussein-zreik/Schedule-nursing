@@ -859,6 +859,10 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- scheduling engine: pure, DOM-free, unit-tested (test/engine.test.mjs).
+     Loaded synchronously BEFORE the inline script so its globals (Engine,
+     getMonday, isoKey, ...) exist when the inline script runs at parse time. -->
+<script src="engine.js"></script>
 <script>
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 // the five core day shifts — the pool the auto-generator fills from (never custom),
@@ -1318,393 +1322,23 @@ function renderHistory(){
   box.innerHTML=h;
 }
 
-/* ---------- date helpers ---------- */
-function getMonday(d){const dt=new Date(d);const dy=dt.getDay();dt.setDate(dt.getDate()+(dy===0?-6:1-dy));dt.setHours(0,0,0,0);return dt;}
-function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+/* ---------- date + display helpers ---------- */
 function fmt(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
-function isoKey(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`;}
-function mkRng(s){let x=s>>>0||1;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return(x>>>0)/0x100000000;};}
-function shuffleArr(a,rng){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
 
-function streak(sh,i,d){
-  let b=0,a=0;
-  for(let x=d-1;x>=0&&WORK_TYPES.has(sh[i][x]);x--)b++;
-  for(let x=d+1;x<14&&WORK_TYPES.has(sh[i][x]);x++)a++;
-  return b+a;
-}
-// longest consecutive run of working days in a 14-day row
-function maxRunLen(row){let m=0,r=0;for(let d=0;d<14;d++){if(WORK_TYPES.has(row[d])){r++;if(r>m)m=r;}else r=0;}return m;}
-// count nurses working a given shift type on an absolute day
-function dtc(sh,d,type){let c=0;for(let i=0;i<sh.length;i++)if(sh[i][d]===type)c++;return c;}
-// repair >3 consecutive runs by relocating a nurse's surplus shift (one whose
-// type is above the day minimum, so it can be dropped safely) to a free weekday
-// slot in the same week that shortens the run. Preserves the 7-count, the
-// per-week split, daily minimums, and the weekday-only surplus rule.
-function repairRuns(sh,nightSet,locks){
-  for(let i=0;i<sh.length;i++){
-    if(nightSet.has(i))continue;
-    for(let guard=0;guard<40&&maxRunLen(sh[i])>3;guard++){
-      let moved=false;
-      for(let d=0;d<14&&!moved;d++){
-        if(!WORK_TYPES.has(sh[i][d]))continue;
-        if(locks&&locks[i][d]!==null)continue; // never move a requested (locked) shift
-        let st=d;while(st>0&&WORK_TYPES.has(sh[i][st-1]))st--;
-        let en=d;while(en<13&&WORK_TYPES.has(sh[i][en+1]))en++;
-        if(en-st+1<=3)continue;            // this day is not in an over-long run
-        const wd=d%7,type=sh[i][d];
-        if(wd>=5)continue;                 // only relocate weekday shifts
-        if(dtc(sh,d,type)<=((DAILY_MIN[wd][type])||0))continue; // no surplus -> can't drop
-        const wkStart=Math.floor(d/7)*7,before=en-st+1;
-        for(let dd=wkStart;dd<wkStart+5;dd++){
-          if(sh[i][dd]!=='OFF'||(locks&&locks[i][dd]!==null))continue; // free, non-locked slot
-          sh[i][d]='OFF';sh[i][dd]=type;    // trial move (same week -> split preserved)
-          if(maxRunLen(sh[i])<before){moved=true;break;}
-          sh[i][dd]='OFF';sh[i][d]=type;    // revert
-        }
-      }
-      if(!moved)break; // cannot improve without breaking a minimum (very rare)
-    }
-  }
-}
-// resolve remaining >3 runs where every shift in the run is essential (at the
-// day minimum) via a type-preserving 2-opt: two non-night nurses swap a
-// weekday+type within the same week. Every daily minimum, both 7-counts and
-// the per-week split are preserved exactly; only the run is broken.
-function swapRepair(sh,nightSet,locks){
-  const nn=[];for(let i=0;i<sh.length;i++)if(!nightSet.has(i))nn.push(i);
-  for(const i of nn){
-    for(let guard=0;guard<40&&maxRunLen(sh[i])>3;guard++){
-      let done=false;
-      for(let d=0;d<14&&!done;d++){
-        if(!WORK_TYPES.has(sh[i][d])||(d%7)>=5)continue;
-        if(locks&&locks[i][d]!==null)continue;   // don't move nurse i's locked shift
-        let st=d;while(st>0&&WORK_TYPES.has(sh[i][st-1]))st--;
-        let en=d;while(en<13&&WORK_TYPES.has(sh[i][en+1]))en++;
-        if(en-st+1<=3)continue;
-        const wk=Math.floor(d/7)*7,Ti=sh[i][d],before=maxRunLen(sh[i]);
-        for(const j of nn){
-          if(j===i||sh[j][d]!=='OFF'||(locks&&locks[j][d]!==null))continue;   // j free (non-locked) on d
-          for(let dj=wk;dj<wk+5;dj++){
-            if(dj===d||(dj%7)>=5)continue;
-            if(!WORK_TYPES.has(sh[j][dj])||sh[i][dj]!=='OFF')continue; // i free on dj
-            if(locks&&(locks[j][dj]!==null||locks[i][dj]!==null))continue; // don't move j's lock; i's target free
-            const Tj=sh[j][dj];
-            sh[i][d]='OFF';sh[i][dj]=Tj;sh[j][dj]='OFF';sh[j][d]=Ti; // swap
-            if(maxRunLen(sh[i])<before&&maxRunLen(sh[j])<=3){done=true;break;}
-            sh[i][dj]='OFF';sh[i][d]=Ti;sh[j][d]='OFF';sh[j][dj]=Tj; // revert
-          }
-          if(done)break;
-        }
-      }
-      if(!done)break;
-    }
-  }
-}
-// choose `rem` weekday slots from `freeWk` that keep <=3 consecutive working
-// days; returns a valid subset (random among valid) or null if none exists
-function pickWeekdaySubset(row,freeWk,rem,rng){
-  if(rem<=0)return [];
-  if(freeWk.length<rem)return null;
-  const valid=[];
-  const n=freeWk.length;
-  for(let mask=0;mask<(1<<n);mask++){
-    let bits=0;for(let k=0;k<n;k++)if(mask&(1<<k))bits++;
-    if(bits!==rem)continue;
-    const test=row.slice();
-    for(let k=0;k<n;k++)if(mask&(1<<k))test[freeWk[k]]='D6';
-    if(maxRunLen(test)<=3){const s=[];for(let k=0;k<n;k++)if(mask&(1<<k))s.push(freeWk[k]);valid.push(s);}
-  }
-  if(!valid.length)return null;
-  return valid[Math.floor(rng()*valid.length)];
-}
-
-/* ---------- rotation turns (nights + weekends) ----------
-   One source of truth used by both the scheduler and the info panel.
-   Nurses are walked in the on-screen list order, split by group.
-   Nights: the pair at position off*2 in each group.
-   Weekends: the NEXT pair, two places after the night pair -- so the weekend
-   turn always follows the night turn. Group A covers weekend 1 (the week they
-   work 4 duties) and Group B covers weekend 2 (their 4-duty week). */
-function groupSeq(){
-  const seq=[],seen=new Set();
-  for(const x of order)if(Number.isInteger(x)&&x>=0&&x<N&&!seen.has(x)){seen.add(x);seq.push(x);}
-  for(let i=0;i<N;i++)if(!seen.has(i))seq.push(i);
-  const a=[],b=[];for(const i of seq)(groups[i]==='A'?a:b).push(i);
-  return {a,b};
-}
-function pairAt(idxs,s){
-  if(!idxs.length)return [];
-  if(idxs.length===1)return [idxs[0]];
-  const k=((s%idxs.length)+idxs.length)%idxs.length;
-  return [idxs[k],idxs[(k+1)%idxs.length]];
-}
-// whose turn it is in a given cycle — pure, so the info panel can show the
-// expected turn even when the schedule on screen has been edited by hand
-function turnFor(off){
-  const {a,b}=groupSeq();
-  const nightA=pairAt(a,off*2),nightB=pairAt(b,off*2);
-  let wkndA=pairAt(a,off*2+2),wkndB=pairAt(b,off*2+2);
-  // tiny groups: never let the weekend pair collide with the night pair
-  if(a.length<4)wkndA=wkndA.filter(i=>!nightA.includes(i));
-  if(b.length<4)wkndB=wkndB.filter(i=>!nightB.includes(i));
-  return {nightA,nightB,wkndA,wkndB};
-}
-
-/* ---------- schedule generation (hardened) ----------
-   Guarantees: every non-night nurse works exactly `quota` day/eve shifts,
-   and every day meets DAILY_MIN whenever the roster has the capacity. */
-// pure: compute the schedule for a given cycle offset, without touching globals.
-// used both for the live view and to build cross-cycle monthly reports.
-function computeSchedule(off,applyBoundary=true,forceFill=false){
+/* ---------- scheduling engine adapters ----------
+   The scheduling brain lives in engine.js (pure, DOM-free, unit-tested in
+   test/engine.test.mjs). These thin wrappers build the ctx from the app's live
+   globals, so every existing call site — computeSchedule(off), turnFor(off) —
+   is unchanged. Pure date/rng/row helpers (getMonday, addDays, isoKey, mkRng,
+   shuffleArr, maxRunLen) are provided as bare globals by engine.js. */
+function schedCtx(){
   syncN();
   const si=document.getElementById('startDate').value;
-  const wStart=getMonday(si?new Date(si):new Date());
-  const base=addDays(wStart,off*14);
-  const days14=Array.from({length:14},(_,i)=>addDays(base,i));
-  const sh=Array.from({length:N},()=>Array(14).fill('OFF'));
-
-  // ----- Requested duties / offs / vacations (LOCKS) -----
-  // Manager-entered requests (stored in `overrides`, keyed by absolute date) are
-  // placed first and treated as immovable: the generator builds everything else
-  // around them and never overwrites or relocates a locked cell. This is what
-  // makes requests both respected and stable — adding one never disturbs another.
-  const locks=Array.from({length:N},()=>Array(14).fill(null));
-  for(let d=0;d<14;d++){
-    const o=overrides[isoKey(days14[d])];
-    if(o)for(const key in o){const idx=idxOfId(key);if(idx>=0){locks[idx][d]=o[key];sh[idx][d]=o[key];}}
-  }
-
-  const gk=isoKey(base);
-  // ----- FROZEN (hand-generated) fortnight -----
-  // Once you press Generate, the filled result is BAKED into `frozen[gk]` and
-  // from then on this fortnight is that fixed grid — editing one cell changes
-  // ONLY that cell, the generator never re-runs, so nothing cascades onto other
-  // days. Requests (overrides) are still applied on top, so a request added
-  // afterwards still shows. Same on every device.
-  if(frozen[gk]){
-    for(let i=0;i<N;i++){const row=frozen[gk][ids[i]];if(row)for(let d=0;d<14;d++)sh[i][d]=row[d];}
-    for(let d=0;d<14;d++){const o=overrides[isoKey(days14[d])];if(o)for(const key in o){const idx=idxOfId(key);if(idx>=0)sh[idx][d]=o[key];}}
-    return {days:days14,sh,weekStart:base};
-  }
-  // Manual mode: an un-generated fortnight stays EMPTY except your entries; it
-  // fills (and freezes) only when Generate is pressed. Auto mode skips this.
-  if(manualMode&&!forceFill&&!committedCycles[gk])return {days:days14,sh,weekStart:base};
-  // Once a fortnight has been generated its own seed is recorded, and it is used
-  // from then on in BOTH modes — otherwise a device in Auto would rebuild that
-  // same fortnight from the global seed and show different duties to a device in
-  // Manual for the very same days.
-  const eSeed=(cycleSeeds[gk]!==undefined)?cycleSeeds[gk]:seed;
-
-  // group membership is dynamic (any roster size / split).
-  // Walk the roster in the on-screen LIST order (the `order` permutation) so the
-  // night rotation follows "the next 2 down the list" in each group even after
-  // rows have been reordered. Falls back to natural order for any missing indices.
-  const {a:aIdxs,b:bIdxs}=groupSeq();
-  const TURN=turnFor(off);
-  // ----- NIGHTS -----
-  // When Generate builds a Manual fortnight (committedCycles set), nights are
-  // 100% yours: NO night is auto-placed and the turn is never stamped on your
-  // plan — a nurse counts as a night nurse only where you entered N7 (so the
-  // day-filler won't top them up with days). A purely automatic fortnight still
-  // gets the fixed night turn.
-  const nightA=TURN.nightA,nightB=TURN.nightB;
-  const NA_DAYS=[0,1,5,6,9,10,11],NB_DAYS=[2,3,4,7,8,12,13];
-  let nightSet;
-  if(committedCycles[gk]){
-    nightSet=new Set();
-    for(let i=0;i<N;i++){for(let d=0;d<14;d++){if(locks[i][d]==='N7'){nightSet.add(i);break;}}}
-  }else{
-    nightSet=new Set([...nightA,...nightB]);
-    for(const i of nightA)for(const d of NA_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
-    for(const i of nightB)for(const d of NB_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
-  }
-
-  // ----- Rest across the cycle boundary (post-night / post-weekend) -----
-  // The "<=3 consecutive days" limit is enforced within each 14-day cycle, but
-  // runs can also cross the seam between cycles. Sunday (day 13) is only ever
-  // worked by the Night-B pair (weekend nights) or the weekend day-team (Sat+Sun
-  // D7), so anyone who works into Sunday carries a 2-day run straight into the
-  // next cycle's Monday (day 0). Two cases, handled differently:
-  //   - Night-B (worked weekend NIGHTS): a day shift the next Monday would break
-  //     the post-night rest rule -> give them Monday off.
-  //   - Weekend DAY-team (Sat+Sun days): Sat,Sun,Mon is only a 3-run (allowed),
-  //     but Sat,Sun,Mon,Tue would be 4 -> let them work Monday, rest Tuesday.
-  //     (Their trailing run is kept at exactly 2 because the weekend day-team is
-  //     also kept off the preceding Friday -- see placeWeekendDuty.)
-  // Who works last cycle's weekend is fully determined by nights + weekend duty
-  // (no randomness), so reading the boundary-free previous cycle is stable.
-  // 'RST' is a rest placeholder the assigner treats as unavailable; it's cleared
-  // to a plain day off before display. Skip anyone on nights again this cycle.
-  if(applyBoundary){
-    const prev=computeSchedule(off-1,false,true).sh;   // no recursion, and always filled
-    for(let i=0;i<N;i++){
-      if(nightSet.has(i)||i>=prev.length)continue;
-      const p=prev[i];
-      if(!(WORK_TYPES.has(p[12])&&WORK_TYPES.has(p[13])))continue;   // worked Sat+Sun last cycle
-      if(p[13]==='N7'){ if(sh[i][0]==='OFF'&&locks[i][0]===null)sh[i][0]='RST'; }  // post-night -> Monday rest
-      else if(sh[i][1]==='OFF'&&locks[i][1]===null)sh[i][1]='RST';                 // post-weekend day -> Tuesday rest
-    }
-  }
-
-  // ----- Weekend DAY duty: a FIXED TURN that follows the night turn -----
-  // The weekend pair is the pair two places after the night pair in the same
-  // group, so the weekend turn trails the night turn down the list.
-  //   Group A covers weekend 1 (days 5-6)  -- the week they work 4 duties
-  //   Group B covers weekend 2 (days 12-13) -- their 4-duty week
-  // Both work Sat AND Sun (D7). Weekends carry NO surplus: exactly the 2-RN
-  // turn each day, nothing auto-added (no Saturday S10 extra). All surplus goes
-  // on weekdays. If you want more people on a weekend, add them by hand.
-  function placeWeekendDuty(){
-    const plan=[{w:0,pair:TURN.wkndA},{w:1,pair:TURN.wkndB}];
-    for(const{w,pair}of plan){
-      const satD=w*7+5,sunD=w*7+6;
-      for(const i of pair){
-        if(nightSet.has(i))continue;                  // safety: tiny groups
-        if(locks[i][satD]===null&&sh[i][satD]==='OFF')sh[i][satD]='D7';
-        if(locks[i][sunD]===null&&sh[i][sunD]==='OFF')sh[i][sunD]='D7';
-      }
-    }
-    // Closing weekend: anyone working BOTH Sat(12)+Sun(13) stays off the
-    // preceding Friday so their run into the next cycle stays within 3.
-    for(let i=0;i<N;i++){
-      if(!nightSet.has(i)&&WORK_TYPES.has(sh[i][12])&&WORK_TYPES.has(sh[i][13])&&sh[i][11]==='OFF'&&locks[i][11]===null)sh[i][11]='RST';
-    }
-  }
-  placeWeekendDuty();
-
-  function assignWeek(week,sh,rng){
-    const base7=week*7;
-    const quota=Array(N).fill(0);
-    for(let i=0;i<N;i++){
-      if(nightSet.has(i)){quota[i]=0;continue;}
-      const isA=groups[i]==='A';let q=(isA?(week===0?4:3):(week===0?3:4));
-      // A requested VAC/HOL is an ENTRY that replaces a working shift, so it
-      // lowers how many working shifts this nurse still needs this week.
-      for(let d=base7;d<base7+7;d++){const L=locks[i][d];if(L==='VAC'||L==='HOL')q--;}
-      quota[i]=Math.max(0,q);
-    }
-    // seed `assigned` with working shifts already in place this week (pre-placed
-    // weekend duty AND requested working shifts) so the 7-count stays exact
-    const assigned=Array(N).fill(0);
-    for(let i=0;i<N;i++){
-      if(nightSet.has(i))continue;
-      let c=0;for(let d=0;d<7;d++)if(WORK_TYPES.has(sh[i][base7+d]))c++;
-      assigned[i]=c;
-    }
-    // a slot is available only if empty AND not carrying a request (locked)
-    const freeSlot=(i,gd)=>sh[i][gd]==='OFF'&&locks[i][gd]===null;
-
-    // eligible with streak guard; `overQuota` relaxes the per-nurse shift cap
-    function eligible(i,gd,guardStreak,overQuota){
-      if(nightSet.has(i))return false;
-      if(!freeSlot(i,gd))return false;
-      if(!overQuota&&assigned[i]>=quota[i])return false;
-      if(guardStreak&&streak(sh,i,gd)>=3)return false;
-      return true;
-    }
-    // The per-nurse turn quota (4/3-3/4) is absolute: the generator NEVER gives
-    // anyone a shift beyond their quota, not even to cover a weekday that a
-    // request has left below minimum. A request may reduce staffing on a day —
-    // that day is simply left short for a manual fix (add a holiday / edit a
-    // cell) — but nobody is ever handed an extra duty when it is not their turn.
-    function place(i,gd,type){sh[i][gd]=type;assigned[i]++;}
-
-    // 1) satisfy WEEKDAY minimums (Mon-Fri); weekend day coverage is already
-    //    placed by the fixed weekend rotation above, so it is excluded here
-    const mandatory=[];
-    for(let d=0;d<5;d++){
-      const need=DAILY_MIN[d];
-      for(const[type,cnt]of Object.entries(need))for(let c=0;c<cnt;c++)mandatory.push({gd:base7+d,type});
-    }
-    const idxAll=Array.from({length:N},(_,i)=>i);
-    for(const slot of shuffleArr(mandatory,rng)){
-      let pool=shuffleArr(idxAll.filter(i=>eligible(i,slot.gd,true)),rng);
-      if(!pool.length)pool=shuffleArr(idxAll.filter(i=>eligible(i,slot.gd,false)),rng);
-      if(!pool.length)continue; // nobody free within quota -> left short for manual fix
-      pool.sort((a,b)=>(quota[b]-assigned[b])-(quota[a]-assigned[a]));
-      place(pool[0],slot.gd,slot.type);
-    }
-
-    // 2) fill every remaining quota shift so each nurse reaches exactly `quota`.
-    //    Surplus above the daily minimums goes on WEEKDAYS ONLY (Mon-Fri), so
-    //    weekends stay at exactly their minimum and no extra nights are added.
-    //    For each nurse we search all weekday-slot combinations and pick one
-    //    that also keeps <=3 consecutive working days. Weekend / >3-run
-    //    fallbacks fire only if no weekday-only, streak-safe option exists,
-    //    so the hard "exactly 7 shifts" rule is never broken.
-    const weekdayGd=Array.from({length:5},(_,d)=>base7+d); // Mon-Fri
-    for(let i=0;i<N;i++){
-      if(nightSet.has(i))continue;
-      const rem=quota[i]-assigned[i];
-      if(rem<=0)continue;
-      const freeWk=weekdayGd.filter(gd=>freeSlot(i,gd));
-      const subset=pickWeekdaySubset(sh[i],freeWk,rem,rng);
-      if(subset){
-        for(const gd of subset){sh[i][gd]=shuffleArr(CORE_DAY,rng)[0];assigned[i]++;}
-        continue;
-      }
-      // A REQUEST can make the full quota impossible without exceeding 3
-      // consecutive days (e.g. Monday requested off leaves exactly Tue-Fri for a
-      // 4-shift week). The <=3 safety rule wins over the 7-count: place as many
-      // as can be placed safely, so the nurse simply works fewer shifts that
-      // cycle. Only applies to nurses who actually have a request -- rosters
-      // without requests keep the original behaviour exactly.
-      if(locks[i].some(x=>x!==null)){
-        let done=false;
-        for(let k=rem-1;k>=1&&!done;k--){
-          const sub=pickWeekdaySubset(sh[i],freeWk,k,rng);
-          if(sub){for(const gd of sub){sh[i][gd]=shuffleArr(CORE_DAY,rng)[0];assigned[i]++;}done=true;}
-        }
-        if(done)continue;
-        continue; // nothing can be placed without breaking the streak rule
-      }
-      // fallback (rare): greedily place remaining on WEEKDAYS ONLY, relaxing the
-      // streak rule if needed. Weekday capacity always covers each nurse's quota
-      // (<=4 shifts in 5 weekday slots), so weekends are never needed here --
-      // and keeping the fallback off the weekend keeps "who worked Sat/Sun"
-      // fully deterministic, which the cross-boundary rest rule relies on.
-      let safety=0;
-      while(assigned[i]<quota[i]&&safety<400){
-        safety++;
-        let pick=null;
-        for(const[pool,guard]of [[weekdayGd,true],[weekdayGd,false]]){
-          const c=shuffleArr(pool.filter(gd=>freeSlot(i,gd)&&(!guard||streak(sh,i,gd)<3)),rng);
-          if(c.length){pick=c[0];break;}
-        }
-        if(pick===null)break;
-        sh[i][pick]=shuffleArr(CORE_DAY,rng)[0];
-        assigned[i]++;
-      }
-    }
-  }
-  // ----- Guarantee <=3 consecutive days -----
-  // Nights and weekend teams are fixed, so only the weekday coverage is
-  // flexible. Retry the weekday assignment (reshuffled each attempt) until no
-  // nurse has a 4+ day run; keep the best if a perfect one is somehow not
-  // found. Nights/weekend/exactly-7/minimums are identical every attempt.
-  const baseSnap=sh.map(r=>r.slice());
-  let best=null,bestMax=99;
-  for(let att=0;att<30;att++){
-    const work=baseSnap.map(r=>r.slice());
-    const arng=mkRng((eSeed^(off*0x9e3779)^(att*0x85ebca6b))>>>0);
-    assignWeek(0,work,arng);assignWeek(1,work,arng);
-    repairRuns(work,nightSet,locks);swapRepair(work,nightSet,locks);repairRuns(work,nightSet,locks);
-    let mx=0;for(let i=0;i<N;i++){const r=maxRunLen(work[i]);if(r>mx)mx=r;}
-    if(mx<bestMax){bestMax=mx;best=work;}
-    if(mx<=3)break;
-  }
-  for(let i=0;i<N;i++)for(let d=0;d<14;d++)sh[i][d]=best[i][d];
-  // clear post-night rest markers back to plain days off (display + counts)
-  for(let i=0;i<N;i++)for(let d=0;d<14;d++)if(sh[i][d]==='RST')sh[i][d]='OFF';
-
-  // 3) apply saved manual overrides keyed by absolute date
-  for(let d=0;d<14;d++){
-    const k=isoKey(days14[d]);
-    if(overrides[k])for(const key in overrides[k]){const idx=idxOfId(key);if(idx>=0)sh[idx][d]=overrides[k][key];}
-  }
-
-  return {days:days14,sh,weekStart:base};
+  return {N,groups,order,ids,overrides,frozen,committedCycles,cycleSeeds,manualMode,seed,
+    dailyMin:DAILY_MIN,coreDay:CORE_DAY,work:WORK_TYPES,anchorMonday:getMonday(si?new Date(si):new Date())};
 }
+function computeSchedule(off,applyBoundary=true,forceFill=false){return Engine.computeSchedule(schedCtx(),off,applyBoundary,forceFill);}
+function turnFor(off){return Engine.turnFor(schedCtx(),off);}
 function buildSchedule(){ sched=computeSchedule(cycleOffset); }
 
 function countForRn(i,type){return sched?sched.sh[i].filter(s=>s===type).length:0;}
@@ -1873,7 +1507,7 @@ function renderBanner(){
   const nightTurnClash=cr.over.some(o=>o.onNight)||cr.under.some(o=>o.onNight);
   // 3) nurses working more than 3 days in a row
   let longRuns=0;
-  for(let i=0;i<N;i++)if(maxRunLen(sh[i])>3)longRuns++;
+  for(let i=0;i<N;i++)if(maxRunLen(sh[i],WORK_TYPES)>3)longRuns++;
   // 4) nights not covered by exactly 2 RNs (nights are manual — you fill these)
   const nightGaps=[...cr.nightsShort,...cr.nightsOver].map(x=>`${DAYS[x.d%7]} ${fmt(days[x.d])} (${x.c})`);
   // 5) advisory fatigue rules (soft warnings — never rule-breaking)
