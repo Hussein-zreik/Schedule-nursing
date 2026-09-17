@@ -25,7 +25,10 @@ const browser = {
   structuredClone: 'readonly', getComputedStyle: 'readonly', matchMedia: 'readonly',
   TextEncoder: 'readonly', TextDecoder: 'readonly', btoa: 'readonly', atob: 'readonly',
   // CDN libs loaded via <script> tags
-  firebase: 'readonly', ExcelJS: 'readonly', jspdf: 'readonly', jsPDF: 'readonly'
+  firebase: 'readonly', ExcelJS: 'readonly', jspdf: 'readonly', jsPDF: 'readonly',
+  // provided by engine.js (loaded before the inline script)
+  Engine: 'readonly', getMonday: 'readonly', addDays: 'readonly', isoKey: 'readonly',
+  mkRng: 'readonly', shuffleArr: 'readonly', maxRunLen: 'readonly'
 };
 
 const bugRules = {
@@ -43,6 +46,18 @@ export default [
     files: ['**/*.html'],
     plugins: { html },
     languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals: browser },
+    rules: bugRules
+  },
+  {
+    // engine.js: a classic browser script (IIFE) that is ALSO a CommonJS module
+    // when imported by the Node unit tests — so it needs both browser and module
+    // globals in scope.
+    files: ['engine.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: { ...browser, module: 'readonly', globalThis: 'readonly' }
+    },
     rules: bugRules
   },
   {
