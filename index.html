@@ -30,7 +30,7 @@
   --border:#232833;--border-2:#2c323d;--border-3:#3a4150;
   --text:#e9ecf1;--text-strong:#f7f9fc;--text-2:#c4cad4;--muted:#9aa3b2;--muted-2:#818996;--muted-3:#6d7683;--muted-4:#5a626f;
   /* accent = interactive (buttons, selection, focus); pos = healthy/OK status */
-  --accent:#8b7ff5;--accent-bg:#1e1b3a;--accent-border:#3f3670;--accent-bg-h:#26224a;
+  --accent:#5aa6e6;--accent-bg:#10233a;--accent-border:#2b527d;--accent-bg-h:#163049;
   --pos:#4ade80;--pos-bg:#132a1d;--pos-border:#245c39;
   --grpA:#8f9cb0;--grpB:#b3a08a;
   --warn:#e0a020;--neg:#f0605f;
@@ -44,7 +44,7 @@
   --s8-bg:#122a18;--s8-fg:#6dd48a;--s8-bd:#1e4527;
   --s9-bg:#102415;--s9-fg:#5cc47a;--s9-bd:#1a3a22;
   --s10-bg:#2a1c05;--s10-fg:#e0a638;--s10-bd:#453009;
-  --n7-bg:#231436;--n7-fg:#b394ec;--n7-bd:#39204f;
+  --n7-bg:#20213f;--n7-fg:#a99ce4;--n7-bd:#372f5b;
   --hol-bg:#331214;--hol-fg:#f28585;--hol-bd:#5e2224;
   --vac-bg:#0f2434;--vac-fg:#7fd0f2;--vac-bd:#1c4a66;
   --req-bg:#331528;--req-fg:#e894c7;--req-bd:#54223f;
@@ -55,27 +55,28 @@
   --bg:#eef1f5;--panel:#ffffff;--panel-2:#f4f6f9;--field:#ffffff;--field-2:#e9edf3;
   --border:#dde2ea;--border-2:#c7cedb;--border-3:#a9b2c2;
   --text:#171b22;--text-strong:#0b0e13;--text-2:#333b47;--muted:#4b5563;--muted-2:#5a6472;--muted-3:#69737f;--muted-4:#7d8794;
-  --accent:#6d28d9;--accent-bg:#efe9fd;--accent-border:#c9b8f2;--accent-bg-h:#e4d9fb;
-  --pos:#157a43;--pos-bg:#e2f4ea;--pos-border:#a5d9bd;
-  --grpA:#5a6675;--grpB:#786a55;
+  --accent:#1668b8;--accent-bg:#e6f0fa;--accent-border:#a9cdec;--accent-bg-h:#d6e7f7;
+  --pos:#1a7a45;--pos-bg:#e3f3ea;--pos-border:#a8d6bd;
+  --grpA:#4f6480;--grpB:#7a6a4e;
   --warn:#8a5200;--neg:#bd2b2b;
-  --row-hover:#f1f4f8;
-  --today-bg:rgba(21,96,180,0.08);--today-line:#1560b4;
-  --flag:#d93a2b;--flag-line:rgba(217,58,43,0.5);
+  --row-hover:#f2f5f9;
+  --today-bg:rgba(22,104,184,0.08);--today-line:#1668b8;
+  --flag:#c9402f;--flag-line:rgba(201,64,47,0.5);
   --grid-bg:#ffffff;
-  --sh-1:0 1px 2px rgba(20,30,50,.10);--sh-2:0 12px 40px rgba(20,30,50,.20);
-  --focus:#1560b4;
-  --shadow:0 12px 40px rgba(20,30,50,.20);
-  --d6-bg:#a9d0f5;--d6-fg:#0c4576;--d6-bd:#7fb4e8;
-  --d7-bg:#b6d8f7;--d7-fg:#0e4e82;--d7-bd:#8cbef0;
-  --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
-  --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
-  --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
-  --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
-  --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
-  --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
-  --req-bg:#f3b6da;--req-fg:#8a2b62;--req-bd:#e58bc0;
-  --off-fg:#858e9c;
+  --sh-1:0 1px 2px rgba(20,30,50,.08);--sh-2:0 12px 40px rgba(20,30,50,.16);
+  --focus:#1668b8;
+  --shadow:0 10px 34px rgba(20,30,50,.16);
+  /* muted, harmonious clinical shift palette (soft tint bg + readable AA text) */
+  --d6-bg:#dce8f5;--d6-fg:#1b4b76;--d6-bd:#bbd4ea;
+  --d7-bg:#cfe0f1;--d7-fg:#17436a;--d7-bd:#aecbe6;
+  --s8-bg:#dcecdd;--s8-fg:#256039;--s8-bd:#bcddc0;
+  --s9-bg:#d0e6d2;--s9-fg:#1d5531;--s9-bd:#aed4b1;
+  --s10-bg:#f3e7c9;--s10-fg:#6d4a12;--s10-bd:#e3ce9e;
+  --n7-bg:#dfdcef;--n7-fg:#3b3675;--n7-bd:#c5bde2;
+  --hol-bg:#f2dcdc;--hol-fg:#8c2c2c;--hol-bd:#e2baba;
+  --vac-bg:#d6e8ef;--vac-fg:#175566;--vac-bd:#b0d3df;
+  --req-bg:#eeddea;--req-fg:#7c3560;--req-bd:#dcbbd0;
+  --off-fg:#8b94a2;
   --scrim:rgba(26,34,46,0.46);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -443,17 +444,17 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     --bg:#fff;--panel:#fff;--panel-2:#f2f4f6;--field:#fff;--field-2:#eef0f3;--grid-bg:#fff;
     --border:#cfd4da;--border-2:#bcc2ca;--border-3:#aab0ba;
     --text:#111;--text-strong:#000;--text-2:#222;--muted:#333;--muted-2:#444;--muted-3:#555;--muted-4:#8a8f98;
-    --grpA:#4d5766;--grpB:#6b5e49;--accent:#5b21b6;--pos:#177d43;--pos-bg:#e2f4ea;--pos-border:#a5d9bd;--warn:#8a5200;--neg:#bd2b2b;
-    --d6-bg:#a9d0f5;--d6-fg:#0c4576;--d6-bd:#7fb4e8;
-    --d7-bg:#b6d8f7;--d7-fg:#0e4e82;--d7-bd:#8cbef0;
-    --s8-bg:#a8dda8;--s8-fg:#145b28;--s8-bd:#7ac97a;
-    --s9-bg:#b4e0b0;--s9-fg:#1a5f23;--s9-bd:#86cd82;
-    --s10-bg:#f2cf85;--s10-fg:#6a4200;--s10-bd:#e0b458;
-    --n7-bg:#cdb4ef;--n7-fg:#4a2a90;--n7-bd:#ab88e0;
-    --hol-bg:#f3b4b4;--hol-fg:#921f1f;--hol-bd:#e58a8a;
-    --vac-bg:#a9d8f2;--vac-fg:#0a557f;--vac-bd:#7dbfe6;
-    --req-bg:#f3b6da;--req-fg:#8a2b62;--req-bd:#e58bc0;
-    --off-fg:#aab0ba;
+    --grpA:#4f6480;--grpB:#7a6a4e;--accent:#1668b8;--pos:#1a7a45;--pos-bg:#e3f3ea;--pos-border:#a8d6bd;--warn:#8a5200;--neg:#bd2b2b;
+    --d6-bg:#dce8f5;--d6-fg:#1b4b76;--d6-bd:#bbd4ea;
+    --d7-bg:#cfe0f1;--d7-fg:#17436a;--d7-bd:#aecbe6;
+    --s8-bg:#dcecdd;--s8-fg:#256039;--s8-bd:#bcddc0;
+    --s9-bg:#d0e6d2;--s9-fg:#1d5531;--s9-bd:#aed4b1;
+    --s10-bg:#f3e7c9;--s10-fg:#6d4a12;--s10-bd:#e3ce9e;
+    --n7-bg:#dfdcef;--n7-fg:#3b3675;--n7-bd:#c5bde2;
+    --hol-bg:#f2dcdc;--hol-fg:#8c2c2c;--hol-bd:#e2baba;
+    --vac-bg:#d6e8ef;--vac-fg:#175566;--vac-bd:#b0d3df;
+    --req-bg:#eeddea;--req-fg:#7c3560;--req-bd:#dcbbd0;
+    --off-fg:#8b94a2;
     --row-hover:#ffffff;--shadow:none;--sh-1:none;--sh-2:none;
   }
   /* never carry a hover highlight onto paper */
@@ -1005,7 +1006,7 @@ function normalizeOrder(){ // ensure `order` is a valid permutation of 0..N-1
 }
 let cycleOffset=0,seed=Date.now(),sched=null;
 let startDateStr='';
-let theme='dark';
+let theme='light';
 let trackerOpen=true;   // Holiday/Vacation panel expanded? (per-device UI preference)
 let cycInfoOpen=true;   // "whose turn this cycle" panel expanded? (per-device)
 let overrides={}; // { 'YYYY-MM-DD': { rnIndex: shift } }
@@ -2529,9 +2530,9 @@ const XL_PAL={
     grid:'FFFFFFFF',gridFg:'FF191D24',header:'FFEEF0F4',headerFg:'FF515A66',
     title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
-    S:{D6:['FFDBEAFB','FF12558F'],D7:['FFE0EDFD','FF175E9E'],S8:['FFD9EFD9','FF1A7233'],
-       S9:['FFE0F1E0','FF20732B'],S10:['FFFAECC7','FF7F5000'],N7:['FFE9DDF8','FF623AB4'],
-       HOL:['FFFADEDE','FFB62A2A'],VAC:['FFD9ECFA','FF0F6AA1'],REQ:['FFFBE0F0','FFB03A80']}
+    S:{D6:['FFDCE8F5','FF1B4B76'],D7:['FFCFE0F1','FF17436A'],S8:['FFDCECDD','FF256039'],
+       S9:['FFD0E6D2','FF1D5531'],S10:['FFF3E7C9','FF6D4A12'],N7:['FFDFDCEF','FF3B3675'],
+       HOL:['FFF2DCDC','FF8C2C2C'],VAC:['FFD6E8EF','FF175566'],REQ:['FFEEDDEA','FF7C3560']}
   },
   dark:{
     grid:'FF0A0A0A',gridFg:'FFE8E6E0',header:'FF111111',headerFg:'FF8A8A8A',
@@ -2706,11 +2707,11 @@ function downloadBlob(blob,name){
 }
 // light-theme shift colors for the PDF (RGB), matching the app's light mode
 const PDF_COL={
-  D6:[[169,208,245],[12,69,118]],D7:[[182,216,247],[14,78,130]],
-  S8:[[168,221,168],[20,91,40]],S9:[[180,224,176],[26,95,35]],
-  S10:[[242,207,133],[106,66,0]],N7:[[205,180,239],[74,42,144]],
-  HOL:[[243,180,180],[146,31,31]],VAC:[[169,216,242],[10,85,127]],
-  REQ:[[243,182,218],[138,43,98]]
+  D6:[[220,232,245],[27,75,118]],D7:[[207,224,241],[23,67,106]],
+  S8:[[220,236,221],[37,96,57]],S9:[[208,230,210],[29,85,49]],
+  S10:[[243,231,201],[109,74,18]],N7:[[223,220,239],[59,54,117]],
+  HOL:[[242,220,220],[140,44,44]],VAC:[[214,232,239],[23,85,102]],
+  REQ:[[238,221,234],[124,53,96]]
 };
 // shared PDF typography/colour so schedule, report and fairness look like one family
 const PDF_T={title:15,sub:9,section:11,ink:[23,27,34],subInk:[90,100,114],
