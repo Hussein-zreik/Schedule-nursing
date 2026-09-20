@@ -6,7 +6,7 @@
 <title>RN Rotating Schedule</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
@@ -16,8 +16,8 @@
 <style>
 :root{
   /* type */
-  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --font-sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --fs-xs:11px;--fs-sm:12px;--fs-base:14px;--fs-md:16px;--fs-lg:20px;--fs-xl:26px;
   --lh-tight:1.25;--lh-normal:1.5;
   /* spacing + shape */
@@ -81,7 +81,10 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm)}
-html,body{background:var(--bg)}
+html,body{background:var(--bg);font-family:var(--font-sans);font-size:var(--fs-base);
+  line-height:var(--lh-normal);color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+/* modals render outside .app, so they must inherit the app typeface explicitly */
+.modal-wrap,.modal,.modal input,.modal select,.modal textarea,.modal button{font-family:var(--font-sans)}
 .app{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:var(--fs-base);line-height:var(--lh-normal);padding:var(--sp-6);border-radius:var(--r-lg);transition:background .2s,color .2s;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
 svg.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
