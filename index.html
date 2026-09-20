@@ -688,6 +688,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     </div>
     <div class="sett-tabs" role="tablist">
       <button class="sett-tab" data-tab="groups" onclick="settTab('groups')">Groups &amp; turn</button>
+      <button class="sett-tab" data-tab="night"  onclick="settTab('night')">Night cycle</button>
       <button class="sett-tab" data-tab="min"    onclick="settTab('min')">Staffing minimums</button>
       <button class="sett-tab" data-tab="shifts" onclick="settTab('shifts')">Shifts</button>
       <button class="sett-tab" data-tab="staff"  onclick="settTab('staff')">Support staff</button>
@@ -703,6 +704,11 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
         <button class="btn sm" onclick="settAdd('A')">+ Add to A</button>
         <button class="btn sm" onclick="settAdd('B')">+ Add to B</button>
       </div>
+    </div>
+
+    <div class="sett-panel" id="settPanel-night" hidden>
+      <div class="sett-note">The <b>night rotation</b>, in turn order. Each fortnight the next <b>4</b> down the list take nights (2 per night, 7 nights each), then it wraps to the top. Use ▲ / ▼ to change whose turn is next; remove an RN to take them off nights entirely (they just work days). Weekends and day quotas are unaffected. Fewer than 4 in the list means some nights are left uncovered for you to fill by hand.</div>
+      <div id="settNightBody"></div>
     </div>
 
     <div class="sett-panel" id="settPanel-min" hidden>
@@ -1004,6 +1010,23 @@ let manualMode=false;      // when true, fortnights start empty and are filled o
 let committedCycles={};    // { 'YYYY-MM-DD'(cycle Monday): true } — which fortnights have been generated
 let cycleSeeds={};         // { 'YYYY-MM-DD'(cycle Monday): seed } — per-fortnight seed so generating one doesn't reshuffle others
 let frozen={};             // { 'YYYY-MM-DD'(cycle Monday): { nurseId: [14 shifts] } } — a generated fortnight baked to a fixed grid so edits don't cascade
+// The night rotation. null = DEFAULT: every RN is eligible and nights use the
+// original group-based turn (2 from A + 2 from B) — untouched rosters are
+// unchanged. Once the manager edits the Night-cycle tab it becomes an ORDERED
+// array of RN stable ids: the next 4 down the list take nights each fortnight,
+// and anyone not in the list never works nights.
+let nightList=null;
+// only prune a customised list (drop removed / duplicate ids); never materialise
+// the default into an array here — that is what keeps the default = old behaviour.
+function ensureNightList(){
+  if(!Array.isArray(nightList))return;
+  const valid=new Set(ids),seen=new Set();
+  nightList=nightList.filter(id=>valid.has(id)&&!seen.has(id)&&(seen.add(id),true));
+}
+// the list to SHOW/edit: the custom list if set, otherwise the whole roster order
+function nightListView(){return Array.isArray(nightList)?nightList:ids.slice();}
+// first edit turns the default into a concrete, customised list
+function materializeNightList(){if(!Array.isArray(nightList))nightList=ids.slice();}
 // advisory fatigue rules (display-only warnings in the health banner)
 let fatigue={turnaround:true, maxNights:8, minRest:1};  // night→day next day; max N7/calendar-month; min days off between working stretches (minRest<=1 = off)
 function ensureFatigue(){if(!fatigue||typeof fatigue!=='object')fatigue={};
@@ -1053,6 +1076,7 @@ const PERSIST=[
   {k:'defVac',     sync:1,      get:()=>defVac,           apply:s=>{if(typeof s.defVac==='number')defVac=s.defVac;}},
   {k:'staffLabels',sync:1,      get:()=>staffLabels,      apply:s=>{if(s.staffLabels&&typeof s.staffLabels==='object')staffLabels=s.staffLabels;}},
   {k:'customShifts',sync:1,     get:()=>customShifts,     apply:s=>{if(Array.isArray(s.customShifts))customShifts=s.customShifts;}},
+  {k:'nightList',  sync:1,      get:()=>nightList,        apply:s=>{nightList=Array.isArray(s.nightList)?s.nightList.map(String):null;}},
   // per-device only (never synced): applied by loadState, not applyStateObject
   {k:'theme',      device:1,    get:()=>theme},
   {k:'trackerOpen',device:1,    get:()=>trackerOpen},
@@ -1097,6 +1121,7 @@ function applyStateObject(s){
   ensureIds();
   if(!hadIds)migrateOverridesToIds();           // one-time legacy request migration
   normalizeOrder();
+  ensureNightList();                            // seed (all RNs) or prune to valid ids
 }
 // legacy state stored requests as overrides[date][rowIndex]; convert to
 // overrides[date][stableId] exactly once (deterministic 'n<index>' ids)
@@ -1277,7 +1302,7 @@ function restore(s){
   // only restore fields the snapshot actually has, so older history entries
   // (taken before a field existed) still load
   for(const f of PERSIST)if(f.undo&&(f.k in s))f.set(s[f.k]);
-  syncN();ensureIds();ensureStaff();normalizeOrder();
+  syncN();ensureIds();ensureStaff();normalizeOrder();ensureNightList();
 }
 // call BEFORE mutating state: pass a snapshot taken before the change + a label
 function pushHistory(label,before){
@@ -1330,8 +1355,9 @@ function fmt(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'
    shuffleArr, maxRunLen) are provided as bare globals by engine.js. */
 function schedCtx(){
   syncN();
+  ensureNightList();
   const si=document.getElementById('startDate').value;
-  return {N,groups,order,ids,overrides,frozen,committedCycles,cycleSeeds,manualMode,seed,
+  return {N,groups,order,ids,overrides,frozen,committedCycles,cycleSeeds,manualMode,seed,nightList,
     dailyMin:DAILY_MIN,coreDay:CORE_DAY,work:WORK_TYPES,anchorMonday:getMonday(si?new Date(si):new Date())};
 }
 function computeSchedule(off,applyBoundary=true,forceFill=false){return Engine.computeSchedule(schedCtx(),off,applyBoundary,forceFill);}
@@ -1663,7 +1689,65 @@ function renderSettings(){
     return h+'</div>';
   };
   box.innerHTML=(col(a,'A','B')+col(b,'B','A'));
-  renderMinTab();renderShiftTab();renderStaffTab();renderDataTab();
+  renderNightTab();renderMinTab();renderShiftTab();renderStaffTab();renderDataTab();
+}
+
+/* ===== Settings tab: Night cycle ===== */
+function renderNightTab(){
+  const box=document.getElementById('settNightBody');if(!box)return;
+  ensureNightList();
+  const list=nightListView(),custom=Array.isArray(nightList);
+  let h='';
+  if(!custom)h+='<div class="sett-note" style="margin-bottom:var(--sp-2)">Default: every RN is eligible and nights use the standard group rotation. Reorder or remove anyone below to switch to your own night cycle.</div>';
+  if(!list.length)h+='<div class="req-empty">No RNs in the night cycle — generated fortnights will have no nights.</div>';
+  else if(list.length<4)h+=`<div class="sett-swaphint">Only ${list.length} in the cycle — a fortnight needs 4, so some nights will be left uncovered.</div>`;
+  list.forEach((id,pos)=>{
+    const i=idxOfId(id),nm=i>=0?names[i]:'(removed)';
+    h+=`<div class="sett-row">
+      <span class="sett-slot">${pos+1}</span>
+      <span class="sett-nm">${escapeHtml(nm)}</span>
+      <button class="sett-btn" onclick="nightMove('${id}',-1)" title="Earlier turn"${pos===0?' disabled style="opacity:.3"':''}>▲</button>
+      <button class="sett-btn" onclick="nightMove('${id}',1)" title="Later turn"${pos===list.length-1?' disabled style="opacity:.3"':''}>▼</button>
+      <button class="sett-btn del" onclick="nightRemove('${id}')" title="Remove from the night cycle">✕</button>
+    </div>`;
+  });
+  const inList=new Set(list);
+  const missing=ids.map((id,i)=>({id,nm:names[i]})).filter(x=>!inList.has(x.id));
+  if(missing.length){
+    h+=`<div class="mactions" style="margin-top:var(--sp-3)"><select id="nightAddSel" class="gsel">`+
+       missing.map(x=>`<option value="${x.id}">${escapeHtml(x.nm)}</option>`).join('')+
+       `</select><button class="btn sm" onclick="nightAdd()">+ Add to night cycle</button></div>`;
+  }else if(custom){
+    h+=`<div class="mactions" style="margin-top:var(--sp-3)"><button class="btn sm" onclick="nightReset()" title="Back to the default group rotation">Reset to default</button></div>`;
+  }
+  box.innerHTML=h;
+}
+function nightMove(id,delta){
+  materializeNightList();
+  const pos=nightList.indexOf(id),to=pos+delta;
+  if(pos<0||to<0||to>=nightList.length)return;
+  [nightList[pos],nightList[to]]=[nightList[to],nightList[pos]];
+  render();saveState();renderNightTab();
+}
+function nightRemove(id){
+  materializeNightList();
+  const i=idxOfId(id),nm=i>=0?names[i]:'this RN';
+  nightList=nightList.filter(x=>x!==id);
+  render();saveState();renderNightTab();
+  toast(`${nm} taken off the night cycle`);
+}
+function nightAdd(){
+  const sel=document.getElementById('nightAddSel');if(!sel||!sel.value)return;
+  materializeNightList();
+  if(!nightList.includes(sel.value))nightList.push(sel.value);
+  const i=idxOfId(sel.value);
+  render();saveState();renderNightTab();
+  toast(`${i>=0?names[i]:'RN'} added to the night cycle`);
+}
+function nightReset(){
+  nightList=null;   // back to the default group-based rotation (everyone eligible)
+  render();saveState();renderNightTab();
+  toast('Night cycle reset to the default rotation');
 }
 // Two-tap swap from the Settings panel: first tap arms an RN, second tap on a
 // different RN trades their groups AND list positions (same as swapRn), so the
@@ -1936,6 +2020,7 @@ function addRN(g){
   ids.push(newId());                       // stable id — requests bind to this, not the row
   order.push(names.length-1); // show the new RN at the end of the list
   syncN();ensureIds();normalizeOrder();
+  if(Array.isArray(nightList))nightList.push(ids[ids.length-1]); // new RN joins the night cycle by default
   pushHistory(`Added ${nm} to Group ${grp}`,before);
   render();saveState();
   toast(`${nm} added to Group ${grp} — schedule adapted`);
@@ -1951,6 +2036,7 @@ function removeRN(i){
   for(const k in overrides){const o=overrides[k];
     if(o[gone]!==undefined)delete o[gone];
     if(!Object.keys(o).length)delete overrides[k];}
+  if(Array.isArray(nightList))nightList=nightList.filter(id=>id!==gone); // drop from night cycle
   syncN();ensureIds();normalizeOrder();
   pushHistory(`Removed ${nm} (Group ${grp})`,before);
   closeNameM();render();saveState();
@@ -2931,7 +3017,7 @@ function downloadFairnessPDF(){
 
 /* ---------- init ---------- */
 loadState();
-syncN();ensureIds();ensureStaff();ensureFatigue();   // fresh installs (no saved state) still need stable ids + staff rows
+syncN();ensureIds();ensureStaff();ensureFatigue();ensureNightList();   // fresh installs (no saved state) still need stable ids + staff rows + night cycle
 applyTheme();
 lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it

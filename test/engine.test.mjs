@@ -149,5 +149,66 @@ test('manual mode: an ungenerated fortnight stays blank', () => {
   assert.equal(sh.reduce((a, r) => a + r.filter(x => x !== 'OFF').length, 0), 0);
 });
 
+/* ---------- custom night cycle (the Night-cycle Settings tab) ---------- */
+function ctxNL(N, nightList, seed = 12345) { const c = ctx(N, {}, { seed }); c.nightList = nightList; return c; }
+const nightsOf = (sh, i) => sh[i].filter(x => x === 'N7').length;
+
+test('custom night list: only listed RNs ever work nights', () => {
+  const list = ['n0', 'n1', 'n2', 'n3', 'n4', 'n5']; // only these 6 eligible
+  const inList = new Set(list);
+  for (let off = 0; off < 8; off++) {
+    const { sh } = Engine.computeSchedule(ctxNL(19, list), off);
+    for (let i = 0; i < 19; i++)
+      if (nightsOf(sh, i) > 0) assert.ok(inList.has('n' + i), `off ${off}: n${i} worked nights but isn't in the list`);
+  }
+});
+test('removed RNs never work nights', () => {
+  const list = ['n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9']; // n0, n1 removed
+  for (let off = 0; off < 8; off++) {
+    const { sh } = Engine.computeSchedule(ctxNL(19, list), off);
+    assert.equal(nightsOf(sh, 0), 0, `off ${off}: n0 removed but has nights`);
+    assert.equal(nightsOf(sh, 1), 0, `off ${off}: n1 removed but has nights`);
+  }
+});
+test('custom order sets whose turn is first', () => {
+  const list = ['n7', 'n2', 'n9', 'n4', 'n0', 'n1']; // n7,n2,n9,n4 are the first four
+  const t = Engine.turnFor(ctxNL(19, list), 0);
+  assert.deepEqual([...t.nightA, ...t.nightB].sort((a, b) => a - b), [2, 4, 7, 9]);
+});
+test('custom list keeps <=3 consecutive and never over-quota', () => {
+  const lists = [
+    Array.from({ length: 19 }, (_, i) => 'n' + i),        // everyone, roster order
+    ['n0', 'n10', 'n1', 'n11', 'n2', 'n12', 'n3', 'n13'], // curated 8
+    ['n0', 'n1', 'n2', 'n3', 'n4']                        // just 5
+  ];
+  for (const list of lists) for (let s = 0; s < 15; s++) for (let off = 0; off < 6; off++) {
+    const { sh } = Engine.computeSchedule(ctxNL(19, list, s * 7919), off);
+    for (let i = 0; i < 19; i++) {
+      assert.ok(maxRun(sh[i]) <= 3, `run > 3: list ${list.length} seed ${s} off ${off} n${i}`);
+      const w = sh[i].filter(x => WORK.has(x)).length;
+      const nights = nightsOf(sh, i);
+      assert.ok(w <= 7, `over 7: n${i}`);                 // never over quota
+      if (nights > 0) assert.equal(nights, 7, `night nurse n${i} not 7 nights`);
+    }
+  }
+});
+test('fewer than 4 eligible: nights are short, not reused', () => {
+  const { sh } = Engine.computeSchedule(ctxNL(19, ['n0', 'n1']), 0); // only 2 eligible
+  // at most 2 distinct nurses ever on nights; some nights uncovered (short), never a 3rd
+  const nightNurses = new Set();
+  for (let d = 0; d < 14; d++) { let c = 0; for (let i = 0; i < 19; i++) if (sh[i][d] === 'N7') { c++; nightNurses.add(i); } assert.ok(c <= 2); }
+  assert.ok(nightNurses.size <= 2);
+});
+test('empty night list: no nights at all', () => {
+  const { sh } = Engine.computeSchedule(ctxNL(19, []), 0);
+  let n7 = 0; for (let i = 0; i < 19; i++) n7 += nightsOf(sh, i);
+  assert.equal(n7, 0);
+});
+test('absent night list falls back to the default group rotation', () => {
+  const c = ctx(19, {}, { seed: 5 });      // no nightList property at all
+  const { sh } = Engine.computeSchedule(c, 0);
+  for (let d = 0; d < 14; d++) assert.equal(cnt(sh, d, 'N7'), 2); // default: 2/night
+});
+
 console.log(`\n${pass} passed, ${fail} failed.`);
 process.exit(fail === 0 ? 0 : 1);

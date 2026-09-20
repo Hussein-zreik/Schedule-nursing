@@ -151,14 +151,46 @@
     const k=((s%idxs.length)+idxs.length)%idxs.length;
     return [idxs[k],idxs[(k+1)%idxs.length]];
   }
+  // the night rotation as row indices, in the manager's chosen order. ctx.nightList
+  // is stable ids; map them to current rows and drop any that are gone. When it is
+  // absent (older state) every RN is eligible, in roster order — the old default.
+  function nightSeqOf(ctx){
+    const {nightList,ids,N}=ctx;
+    if(!Array.isArray(nightList))return Array.from({length:N},(_,i)=>i);
+    const seq=[],seen=new Set();
+    for(const id of nightList){const i=ids.indexOf(id);if(i>=0&&i<N&&!seen.has(i)){seen.add(i);seq.push(i);}}
+    return seq;
+  }
+  // walk `idxs` from position s and collect `count` distinct entries not in `avoid`
+  function pickAvoiding(idxs,s,avoid,count){
+    const res=[],n=idxs.length;if(!n)return res;
+    const start=((s%n)+n)%n;
+    for(let t=0;t<n&&res.length<count;t++){const i=idxs[(start+t)%n];if(!avoid.has(i))res.push(i);}
+    return res;
+  }
   // whose turn it is in a given cycle — pure, so the info panel can show the
-  // expected turn even when the schedule on screen has been edited by hand
+  // expected turn even when the schedule on screen has been edited by hand.
+  //
+  // Two rotations:
+  //  - DEFAULT (ctx.nightList absent): the original group-based turn — 2 from
+  //    group A + 2 from group B, weekend nights on the 3-duty group. Unchanged,
+  //    so untouched rosters behave exactly as before.
+  //  - CUSTOM (ctx.nightList is an array): a single ordered night cycle. Each
+  //    fortnight the next 4 down the list take nights (2 per half of the days),
+  //    advancing and wrapping. Weekend day duty stays group-based but skips any
+  //    nurse on nights this fortnight.
   function turnFor(ctx,off){
     const {a,b}=groupSeq(ctx);
+    if(Array.isArray(ctx.nightList)){
+      const L=nightSeqOf(ctx),n=L.length,picks=[];
+      if(n>0){const k=((off*4)%n+n)%n;for(let t=0;t<4&&t<n;t++)picks.push(L[(k+t)%n]);}
+      const nset=new Set(picks);
+      return {nightA:picks.slice(0,2),nightB:picks.slice(2,4),
+        wkndA:pickAvoiding(a,off*2+2,nset,2),wkndB:pickAvoiding(b,off*2+2,nset,2)};
+    }
     const nightA=pairAt(a,off*2),nightB=pairAt(b,off*2);
     let wkndA=pairAt(a,off*2+2),wkndB=pairAt(b,off*2+2);
-    // tiny groups: never let the weekend pair collide with the night pair
-    if(a.length<4)wkndA=wkndA.filter(i=>!nightA.includes(i));
+    if(a.length<4)wkndA=wkndA.filter(i=>!nightA.includes(i));   // tiny groups: no collision
     if(b.length<4)wkndB=wkndB.filter(i=>!nightB.includes(i));
     return {nightA,nightB,wkndA,wkndB};
   }
@@ -304,7 +336,8 @@
           if(done)continue;
           continue; // nothing can be placed without breaking the streak rule
         }
-        // fallback (rare): greedily place remaining on WEEKDAYS ONLY.
+        // fallback (rare): greedily place remaining on WEEKDAYS ONLY, allowing a
+        // temporary long run that the repair pass below resolves.
         let safety=0;
         while(assigned[i]<quota[i]&&safety<400){
           safety++;
@@ -330,6 +363,30 @@
       let mx=0;for(let i=0;i<N;i++){const r=maxRunLen(work[i]);if(r>mx)mx=r;}
       if(mx<bestMax){bestMax=mx;best=work;}
       if(mx<=3)break;
+    }
+    // Absolute <=3: if repair could not resolve every run (a FORCED case — e.g. a
+    // nurse coming off a week of weekend nights whose 4-duty week only leaves
+    // Tue-Fri, which no reshuffle can break), drop the offending non-locked
+    // weekday shift(s). The <=3 rule and the no-weekend-surplus rule are absolute
+    // and win; the nurse is simply left UNDER quota (short-staffed — fill with a
+    // manual holiday). Never a 4th consecutive day.
+    if(bestMax>3){
+      for(let i=0;i<N;i++){
+        if(nightSet.has(i))continue;
+        let guard=0;
+        while(maxRunLen(best[i])>3&&guard++<14){
+          let cut=-1,cutWknd=-1;
+          for(let d=0;d<14;d++){
+            if(!WORK.has(best[i][d])||locks[i][d]!==null)continue;
+            let st=d;while(st>0&&WORK.has(best[i][st-1]))st--;
+            let en=d;while(en<13&&WORK.has(best[i][en+1]))en++;
+            if(en-st+1>3){ if(d%7<5){cut=d;break;} else if(cutWknd<0)cutWknd=d; }
+          }
+          if(cut<0)cut=cutWknd;          // prefer trimming a weekday; weekend only if forced
+          if(cut<0)break;
+          best[i][cut]='OFF';
+        }
+      }
     }
     for(let i=0;i<N;i++)for(let d=0;d<14;d++)sh[i][d]=best[i][d];
     // clear post-night rest markers back to plain days off (display + counts)
