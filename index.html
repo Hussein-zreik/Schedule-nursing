@@ -1844,6 +1844,20 @@ function minSet(d,type,val){
   render();saveState();renderSettings();
 }
 function minReset(){DAILY_MIN=JSON.parse(JSON.stringify(DEFAULT_MIN));render();saveState();renderSettings();toast('Minimums reset to defaults');}
+// Drop every BAKED fortnight so each one is recomputed with the rules as they are
+// now. Fortnights generated under older rules keep their old grid forever
+// otherwise. Requests/holidays/vacations live in `overrides` and are untouched;
+// committedCycles is kept so Manual-mode fortnights still show (just rebuilt).
+function rebuildAllCycles(){
+  const n=Object.keys(frozen).length;
+  if(!n){toast('Nothing stored to rebuild — cycles already follow the current rules');return;}
+  if(!confirm(`Rebuild ${n} generated fortnight${n>1?'s':''} with the current rules?\n\nRequests, holidays and vacations are kept. Any hand edits made after generating will be replaced.`))return;
+  const b=snapshot();
+  pushHistory(`Rebuilt ${n} generated fortnight${n>1?'s':''}`,b);
+  frozen={};cycleSeeds={};
+  render();saveState();renderSettings();
+  toast(`${n} fortnight${n>1?'s':''} rebuilt with the current rules`);
+}
 
 /* ===== Settings tab: Shifts (custom extra shift types) ===== */
 function renderShiftTab(){
@@ -1931,6 +1945,11 @@ function renderDataTab(){
       <label class="fatigue-row">Holiday <input type="number" id="defHolIn" min="0" max="99" class="fatigue-num" value="${defHol}" onchange="setDefBal('hol',this.value)"> days</label>
       <label class="fatigue-row">Vacation <input type="number" id="defVacIn" min="0" max="99" class="fatigue-num" value="${defVac}" onchange="setDefBal('vac',this.value)"> days</label>
       <div class="fatigue-row" style="margin-top:10px"><button class="btn sm" onclick="setAllBal()">Set ALL current RNs to these balances</button></div>
+    </div>
+    <div class="fatigue-box" style="margin-top:var(--sp-3)">
+      <h4 class="fatigue-h">Generated fortnights <span class="fatigue-sub">(${Object.keys(frozen).length} stored)</span></h4>
+      <div class="sett-note" style="margin:0 0 8px">A fortnight is saved exactly as it was generated, so cycles made before a rule change keep the old result. Rebuilding recomputes every stored fortnight with the current rules — <b>your requests, holidays and vacations are kept</b>.</div>
+      <div class="fatigue-row"><button class="btn sm" onclick="rebuildAllCycles()" title="Recompute every generated fortnight with the current rules">Rebuild all generated fortnights</button></div>
     </div>
     <div class="fatigue-box" style="margin-top:var(--sp-3)">
       <h4 class="fatigue-h">Backup &amp; reset</h4>
