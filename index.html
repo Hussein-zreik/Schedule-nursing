@@ -1723,37 +1723,75 @@ function renderNightTab(){
   const box=document.getElementById('settNightBody');if(!box)return;
   ensureNightList();
   const list=nightListView(),custom=Array.isArray(nightList);
+  const size=nightMinOf();
+  // split into the two group rotations — this is exactly what the scheduler uses
+  const seq=g=>list.filter(id=>{const i=idxOfId(id);return i>=0&&groups[i]===g;});
+  const seqA=seq('A'),seqB=seq('B');
+  const turnsOf=q=>q.length?Math.ceil(q.length/Math.min(size,q.length)):0;
+  const nTurns=Math.max(turnsOf(seqA),turnsOf(seqB));
   let h='';
-  if(!custom)h+='<div class="sett-note" style="margin-bottom:var(--sp-2)">Default: every RN is eligible and nights use the standard group rotation. Reorder or remove anyone below to switch to your own night cycle.</div>';
-  if(!list.length)h+='<div class="req-empty">No RNs in the night cycle — generated fortnights will have no nights.</div>';
-  else if(list.length<4)h+=`<div class="sett-swaphint">Only ${list.length} in the cycle — a fortnight needs 4, so some nights will be left uncovered.</div>`;
-  list.forEach((id,pos)=>{
-    const i=idxOfId(id),nm=i>=0?names[i]:'(removed)';
-    const gtag=i>=0?`<span class="rn-grp" style="color:var(--grp${groups[i]})">${groups[i]}</span>`:'';
-    h+=`<div class="sett-row">
-      <span class="sett-slot">${pos+1}</span>
-      <span class="sett-nm">${escapeHtml(nm)}</span>${gtag}
-      <button class="sett-btn" onclick="nightMove('${id}',-1)" title="Earlier turn"${pos===0?' disabled style="opacity:.3"':''}>▲</button>
-      <button class="sett-btn" onclick="nightMove('${id}',1)" title="Later turn"${pos===list.length-1?' disabled style="opacity:.3"':''}>▼</button>
-      <button class="sett-btn del" onclick="nightRemove('${id}')" title="Remove from the night cycle">✕</button>
-    </div>`;
-  });
+  if(!custom)h+='<div class="sett-note" style="margin-bottom:var(--sp-2)">Default: every RN is eligible. Reorder or remove anyone below to set your own night cycle.</div>';
+  // warnings that actually explain a wrong-looking rotation
+  const warn=[];
+  if(seqA.length<size)warn.push(`Group A has only <b>${seqA.length}</b> RN(s) on nights — ${size} are needed, so those nights will be short.`);
+  if(seqB.length<size)warn.push(`Group B has only <b>${seqB.length}</b> RN(s) on nights — ${size} are needed, so those nights will be short.`);
+  if(seqA.length>=size&&seqA.length%size)warn.push(`Group A has <b>${seqA.length}</b> RNs — not a multiple of ${size}, so the last turn wraps round to the top of the list.`);
+  if(seqB.length>=size&&seqB.length%size)warn.push(`Group B has <b>${seqB.length}</b> RNs — not a multiple of ${size}, so the last turn wraps round to the top of the list.`);
+  if(warn.length)h+=`<div class="sett-swaphint">${warn.join('<br>')}</div>`;
+  // the two rotations, grouped into turns of `size`
+  const col=(q,g)=>{
+    let c=`<div class="sett-col"><h4><span style="color:var(--grp${g})">■</span> Group ${g} nights <span style="font-weight:400;color:var(--muted-3)">(${q.length} RN${q.length===1?'':'s'})</span></h4>`;
+    if(!q.length)c+='<div class="req-empty">Nobody from this group is on nights.</div>';
+    q.forEach((id,pos)=>{
+      const i=idxOfId(id),nm=i>=0?names[i]:'(no longer on the roster)';
+      const turn=Math.floor(pos/size)+1;
+      const first=pos%size===0;
+      if(first)c+=`<div class="sett-slot" style="display:block;margin:8px 0 2px;color:var(--muted-2)">Turn ${turn}</div>`;
+      c+=`<div class="sett-row">
+        <span class="sett-nm">${escapeHtml(nm)}</span>
+        <button class="sett-btn" onclick="nightMove('${id}',-1)" title="Earlier turn"${pos===0?' disabled style="opacity:.3"':''}>&#9650;</button>
+        <button class="sett-btn" onclick="nightMove('${id}',1)" title="Later turn"${pos===q.length-1?' disabled style="opacity:.3"':''}>&#9660;</button>
+        <button class="sett-btn del" onclick="nightRemove('${id}')" title="Remove from the night cycle">&#10005;</button>
+      </div>`;
+    });
+    return c+'</div>';
+  };
+  h+='<div class="sett-grid">'+col(seqA,'A')+col(seqB,'B')+'</div>';
+  // live preview of the next cycles, straight from the scheduler
+  if(nTurns){
+    h+=`<div class="fatigue-box" style="margin-top:var(--sp-3)"><h4 class="fatigue-h">Whose turn, cycle by cycle <span class="fatigue-sub">(live &mdash; this is what the schedule will use)</span></h4>`;
+    for(let k=0;k<Math.min(6,nTurns+1);k++){
+      const off=cycleOffset+k,T=turnFor(off);
+      const nm=a=>a.length?a.map(i=>escapeHtml(names[i])).join(' + '):'<span style="color:var(--neg)">nobody</span>';
+      h+=`<div class="fatigue-row"><span style="min-width:70px;color:var(--muted-2)">Cycle ${off}</span>
+        <span style="color:var(--grpA)">A:</span> ${nm(T.nightA)} &nbsp;&middot;&nbsp;
+        <span style="color:var(--grpB)">B:</span> ${nm(T.nightB)}</div>`;
+    }
+    h+='</div>';
+  }
   const inList=new Set(list);
-  const missing=ids.map((id,i)=>({id,nm:names[i]})).filter(x=>!inList.has(x.id));
+  const missing=ids.map((id,i)=>({id,nm:names[i],g:groups[i]})).filter(x=>!inList.has(x.id));
   if(missing.length){
     h+=`<div class="mactions" style="margin-top:var(--sp-3)"><select id="nightAddSel" class="gsel">`+
-       missing.map(x=>`<option value="${x.id}">${escapeHtml(x.nm)}</option>`).join('')+
+       missing.map(x=>`<option value="${x.id}">${escapeHtml(x.nm)} (${x.g})</option>`).join('')+
        `</select><button class="btn sm" onclick="nightAdd()">+ Add to night cycle</button></div>`;
-  }else if(custom){
-    h+=`<div class="mactions" style="margin-top:var(--sp-3)"><button class="btn sm" onclick="nightReset()" title="Back to the default group rotation">Reset to default</button></div>`;
   }
+  if(custom)h+=`<div class="mactions" style="margin-top:var(--sp-2)"><button class="btn sm" onclick="nightReset()" title="Back to the default: every RN eligible">Reset to default (everyone)</button></div>`;
   box.innerHTML=h;
 }
+// move an RN earlier/later in THEIR OWN group's night rotation (the two groups
+// rotate independently, so swapping with the neighbour of the same group is what
+// actually changes whose turn is next)
 function nightMove(id,delta){
   materializeNightList();
-  const pos=nightList.indexOf(id),to=pos+delta;
-  if(pos<0||to<0||to>=nightList.length)return;
-  [nightList[pos],nightList[to]]=[nightList[to],nightList[pos]];
+  const me=idxOfId(id);if(me<0)return;
+  const g=groups[me];
+  const posOf=[];                                  // positions in nightList holding this group
+  nightList.forEach((x,k)=>{const i=idxOfId(x);if(i>=0&&groups[i]===g)posOf.push(k);});
+  const at=posOf.indexOf(nightList.indexOf(id)),to=at+delta;
+  if(at<0||to<0||to>=posOf.length)return;
+  const a=posOf[at],b=posOf[to];
+  [nightList[a],nightList[b]]=[nightList[b],nightList[a]];
   render();saveState();renderNightTab();
 }
 function nightRemove(id){
