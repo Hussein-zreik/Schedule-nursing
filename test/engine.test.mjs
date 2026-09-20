@@ -192,6 +192,49 @@ test('custom order sets whose turn is first, within each group', () => {
   assert.deepEqual(t.nightA, [7, 2]);   // first two Group-A entries in list order
   assert.deepEqual(t.nightB, [12, 15]); // first two Group-B entries in list order
 });
+test('night turns TILE the list and reroll (1-2, 3-4, 5-6, 7-8, back to 1-2)', () => {
+  // the manager's order: 1,2,11,12, 3,4,13,14, 5,6,15,16, 7,8,17,18 (RN9/10/19 off nights)
+  const list = [1, 2, 11, 12, 3, 4, 13, 14, 5, 6, 15, 16, 7, 8, 17, 18].map(r => 'n' + (r - 1));
+  const expect = [[[0, 1], [10, 11]], [[2, 3], [12, 13]], [[4, 5], [14, 15]], [[6, 7], [16, 17]]];
+  for (let off = 0; off < 8; off++) {
+    const t = Engine.turnFor(ctxNL(19, list), off);
+    const [eA, eB] = expect[off % 4];               // rerolls every 4 cycles
+    assert.deepEqual(t.nightA, eA, `cycle ${off} group A`);
+    assert.deepEqual(t.nightB, eB, `cycle ${off} group B`);
+  }
+  // the specific case: cycle 5 must be RN3,RN4 + RN13,RN14
+  const t5 = Engine.turnFor(ctxNL(19, list), 5);
+  assert.deepEqual([...t5.nightA, ...t5.nightB], [2, 3, 12, 13]);
+});
+test('night pattern: 4-duty week Mon/Tue/Sat/Sun, 3-duty week Wed/Thu/Fri', () => {
+  const list = [1, 2, 11, 12, 3, 4, 13, 14, 5, 6, 15, 16, 7, 8, 17, 18].map(r => 'n' + (r - 1));
+  const { sh } = Engine.computeSchedule(ctxNL(19, list), 5);
+  const days = i => { const d = []; for (let x = 0; x < 14; x++) if (sh[i][x] === 'N7') d.push(x); return d; };
+  assert.deepEqual(days(2), [0, 1, 5, 6, 9, 10, 11]);   // RN3 (A): Mon,Tue,Sat,Sun | Wed,Thu,Fri
+  assert.deepEqual(days(12), [2, 3, 4, 7, 8, 12, 13]);  // RN13 (B): Wed,Thu,Fri | Mon,Tue,Sat,Sun
+  for (let d = 0; d < 14; d++) assert.equal(cnt(sh, d, 'N7'), 2, `day ${d} must have exactly 2 on nights`);
+});
+test('N7 minimum sets how many RNs staff each night', () => {
+  const mins = n7 => [0, 1, 2, 3, 4].map(() => ({ D6: 2, D7: 2, S8: 1, S9: 2, S10: 1, N7: n7 }))
+    .concat([{ D7: 2, N7: n7 }, { D7: 2, N7: n7 }]);
+  for (const n7 of [2, 3]) {
+    const c = ctx(19); c.dailyMin = mins(n7); c.nightMin = n7;
+    const { sh } = Engine.computeSchedule(c, 0);
+    for (let d = 0; d < 14; d++) assert.equal(cnt(sh, d, 'N7'), n7, `N7=${n7} day ${d}`);
+  }
+});
+test('N7 minimum is never filled with day shifts', () => {
+  const c = ctx(19);
+  c.dailyMin = [0, 1, 2, 3, 4].map(() => ({ D6: 2, D7: 2, S8: 1, S9: 2, S10: 1, N7: 2 }))
+    .concat([{ D7: 2, N7: 2 }, { D7: 2, N7: 2 }]);
+  const { sh } = Engine.computeSchedule(c, 0);
+  // nobody works both a night and a day shift in the same fortnight
+  for (let i = 0; i < 19; i++) {
+    const n = sh[i].filter(x => x === 'N7').length;
+    const dd = sh[i].filter(x => CORE.includes(x)).length;
+    assert.ok(!(n > 0 && dd > 0), `n${i} has ${n} nights and ${dd} days`);
+  }
+});
 test('a group with <2 eligible comes up short, no borrowing', () => {
   const list = ['n0', 'n1', 'n2', 'n10']; // A: 0,1,2  B: only 10
   const t = Engine.turnFor(ctxNL(19, list), 0);

@@ -161,6 +161,18 @@
     for(const id of nightList){const i=ids.indexOf(id);if(i>=0&&i<N&&!seen.has(i)){seen.add(i);seq.push(i);}}
     return seq;
   }
+  // The night team for one group in a given cycle. The list is split into
+  // consecutive TURNS of `size` (1-2, 3-4, 5-6, ... for size 2) and cycle `off`
+  // takes turn (off mod turns) — so turns tile the list cleanly and then reroll
+  // from the top, instead of drifting by one on every wrap. If the final turn is
+  // short (odd list), it wraps to the front so the team is always `size` strong.
+  function nightTeam(seq,off,size){
+    const n=seq.length;if(!n||size<=0)return [];
+    const take=Math.min(size,n),turns=Math.ceil(n/take);
+    const t=((off%turns)+turns)%turns,out=[];
+    for(let k=0;k<take;k++)out.push(seq[(t*take+k)%n]);
+    return out;
+  }
   // walk `idxs` from position s and collect `count` distinct entries not in `avoid`
   function pickAvoiding(idxs,s,avoid,count){
     const res=[],n=idxs.length;if(!n)return res;
@@ -181,19 +193,19 @@
   //    night rotation; a group with fewer than 2 eligible simply comes up short.
   function turnFor(ctx,off){
     const {a,b}=groupSeq(ctx);
+    const size=Number.isInteger(ctx.nightMin)&&ctx.nightMin>0?ctx.nightMin:2;
+    // eligible night RNs per group, in the night-list order (or the whole group)
+    let seqA,seqB;
     if(Array.isArray(ctx.nightList)){
       const g=ctx.groups,seq=nightSeqOf(ctx);
-      const seqA=seq.filter(i=>g[i]==='A'),seqB=seq.filter(i=>g[i]==='B');
-      const nightA=pairAt(seqA,off*2),nightB=pairAt(seqB,off*2);
-      const nset=new Set([...nightA,...nightB]);
-      // weekend day pair from the full group, skipping this fortnight's night nurses
-      return {nightA,nightB,wkndA:pickAvoiding(a,off*2+2,nset,2),wkndB:pickAvoiding(b,off*2+2,nset,2)};
-    }
-    const nightA=pairAt(a,off*2),nightB=pairAt(b,off*2);
-    let wkndA=pairAt(a,off*2+2),wkndB=pairAt(b,off*2+2);
-    if(a.length<4)wkndA=wkndA.filter(i=>!nightA.includes(i));   // tiny groups: no collision
-    if(b.length<4)wkndB=wkndB.filter(i=>!nightB.includes(i));
-    return {nightA,nightB,wkndA,wkndB};
+      seqA=seq.filter(i=>g[i]==='A');seqB=seq.filter(i=>g[i]==='B');
+    }else{seqA=a;seqB=b;}
+    const nightA=nightTeam(seqA,off,size),nightB=nightTeam(seqB,off,size);
+    // weekend day team from the full group, never a nurse already on nights
+    const nset=new Set([...nightA,...nightB]);
+    return {nightA,nightB,
+      wkndA:pickAvoiding(a,off*2+2,nset,2),
+      wkndB:pickAvoiding(b,off*2+2,nset,2)};
   }
 
   /* ---------- schedule generation (hardened) ----------
@@ -303,7 +315,9 @@
       const mandatory=[];
       for(let d=0;d<5;d++){
         const need=DMIN[d];
-        for(const[type,cnt]of Object.entries(need))for(let c=0;c<cnt;c++)mandatory.push({gd:base7+d,type});
+        // N7 is the NIGHT minimum — staffed by the night team, never by the day fill
+        for(const[type,cnt]of Object.entries(need)){if(type==='N7')continue;
+          for(let c=0;c<cnt;c++)mandatory.push({gd:base7+d,type});}
       }
       const idxAll=Array.from({length:N},(_,i)=>i);
       for(const slot of shuffleArr(mandatory,rng)){
@@ -326,19 +340,11 @@
           for(const gd of subset){sh[i][gd]=shuffleArr(CORE,rng)[0];assigned[i]++;}
           continue;
         }
-        // A REQUEST can make the full quota impossible without exceeding 3
-        // consecutive days: place as many as can be placed safely.
-        if(locks[i].some(x=>x!==null)){
-          let done=false;
-          for(let k=rem-1;k>=1&&!done;k--){
-            const sub=pickWeekdaySubset(sh[i],freeWk,k,rng);
-            if(sub){for(const gd of sub){sh[i][gd]=shuffleArr(CORE,rng)[0];assigned[i]++;}done=true;}
-          }
-          if(done)continue;
-          continue; // nothing can be placed without breaking the streak rule
-        }
-        // fallback (rare): greedily place remaining on WEEKDAYS ONLY, allowing a
-        // temporary long run that the repair pass below resolves.
+        // No way to ADD the remaining shifts to this nurse's existing days without
+        // exceeding 3 in a row (common when a request pins a midweek duty). Place
+        // them greedily on WEEKDAYS anyway, allowing a temporary long run: the
+        // repair pass below can RE-ARRANGE the whole week (which a per-nurse
+        // add-only search cannot), and the safety trim afterwards guarantees <=3.
         let safety=0;
         while(assigned[i]<quota[i]&&safety<400){
           safety++;

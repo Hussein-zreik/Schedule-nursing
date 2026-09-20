@@ -722,7 +722,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     </div>
 
     <div class="sett-panel" id="settPanel-min" hidden>
-      <div class="sett-note">Minimum staff needed on each weekday for each shift type. The generator fills weekdays up to these numbers; the health banner flags any day below them. Weekend day cover is the fixed 2-RN turn (edit D7 only).</div>
+      <div class="sett-note">Minimum staff needed each weekday for each shift type. The generator fills weekdays up to these numbers; the health banner flags any day below them. Weekend day cover is the fixed 2-RN turn (edit D7 only). <b>N7</b> is the <b>night</b> requirement and applies every day — it is staffed by the <b>Night cycle</b> turn (that many RNs from Group A, and that many from Group B, alternating weeks), never by day shifts.</div>
       <div id="settMinBody"></div>
       <div class="mactions" style="margin-top:var(--sp-3)"><button class="btn sm" onclick="minReset()">Reset to defaults</button></div>
     </div>
@@ -938,11 +938,22 @@ function customPair(code){const s=customShifts.find(x=>x.code===code);if(!s)retu
   return {bg:mixRgb(rgb,[255,255,255],0.82),fg:mixRgb(rgb,[0,0,0],0.42)};}
 function xlCustom(code){const p=customPair(code);if(!p)return null;const a=r=>'FF'+r.map(c=>c.toString(16).padStart(2,'0')).join('').toUpperCase();return [a(p.bg),a(p.fg)];}
 function pdfCustom(code){const p=customPair(code);if(!p)return null;return [p.bg,p.fg];}
+// Minimum staffing per weekday. N7 is the NIGHT requirement (2 RNs every night);
+// the night team is drawn from the night cycle, the rest are the day/eve shifts.
 let DAILY_MIN=[
-  {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},
-  {D6:2,D7:2,S8:1,S9:2,S10:1},{D6:2,D7:2,S8:1,S9:2,S10:1},{D7:2},{D7:2}
+  {D6:2,D7:2,S8:1,S9:2,S10:1,N7:2},{D6:2,D7:2,S8:1,S9:2,S10:1,N7:2},{D6:2,D7:2,S8:1,S9:2,S10:1,N7:2},
+  {D6:2,D7:2,S8:1,S9:2,S10:1,N7:2},{D6:2,D7:2,S8:1,S9:2,S10:1,N7:2},{D7:2,N7:2},{D7:2,N7:2}
 ];
 const DEFAULT_MIN=JSON.parse(JSON.stringify(DAILY_MIN));   // for "reset to defaults"
+// saved settings from before N7 was a minimum have no N7 key — seed it with 2
+function ensureDailyMin(){
+  if(!Array.isArray(DAILY_MIN)||DAILY_MIN.length!==7)DAILY_MIN=JSON.parse(JSON.stringify(DEFAULT_MIN));
+  for(let d=0;d<7;d++){ if(!DAILY_MIN[d]||typeof DAILY_MIN[d]!=='object')DAILY_MIN[d]={};
+    if(DAILY_MIN[d].N7===undefined)DAILY_MIN[d].N7=2; }
+}
+// how many RNs staff every night — one team covers the fortnight, so the highest
+// N7 value in the week is used (keeps every night at or above its minimum)
+function nightMinOf(){ensureDailyMin();return Math.max(0,...DAILY_MIN.map(m=>(m&&m.N7)||0));}
 let defHol=14,defVac=21;                                   // default Hol/Vac balances for new RNs
 let staffLabels={};                                        // { groupKey: customLabel } — overrides STAFF_GROUPS labels
 let N=19; // number of RNs — kept in sync with names.length
@@ -1132,6 +1143,7 @@ function applyStateObject(s){
   if(!hadIds)migrateOverridesToIds();           // one-time legacy request migration
   normalizeOrder();
   ensureNightList();                            // seed (all RNs) or prune to valid ids
+  ensureDailyMin();                             // seed N7 on states saved before it existed
 }
 // legacy state stored requests as overrides[date][rowIndex]; convert to
 // overrides[date][stableId] exactly once (deterministic 'n<index>' ids)
@@ -1368,7 +1380,8 @@ function schedCtx(){
   ensureNightList();
   const si=document.getElementById('startDate').value;
   return {N,groups,order,ids,overrides,frozen,committedCycles,cycleSeeds,manualMode,seed,nightList,
-    dailyMin:DAILY_MIN,coreDay:CORE_DAY,work:WORK_TYPES,anchorMonday:getMonday(si?new Date(si):new Date())};
+    dailyMin:DAILY_MIN,coreDay:CORE_DAY,work:WORK_TYPES,nightMin:nightMinOf(),
+    anchorMonday:getMonday(si?new Date(si):new Date())};
 }
 function computeSchedule(off,applyBoundary=true,forceFill=false){return Engine.computeSchedule(schedCtx(),off,applyBoundary,forceFill);}
 function turnFor(off){return Engine.turnFor(schedCtx(),off);}
@@ -1376,10 +1389,13 @@ function buildSchedule(){ sched=computeSchedule(cycleOffset); }
 
 function countForRn(i,type){return sched?sched.sh[i].filter(s=>s===type).length:0;}
 function dayTypeCount(sh,d,type){let c=0;for(let i=0;i<N;i++)if(sh[i][d]===type)c++;return c;}
-function dayShort(sh,d){ // is this day below minimum on any type?
+function dayShort(sh,d){ // below minimum on any DAY/EVE type (nights checked separately)
   const w=DAILY_MIN[d%7];
-  for(const t in w)if(dayTypeCount(sh,d,t)<w[t])return true;
+  for(const t in w){if(t==='N7')continue;if(dayTypeCount(sh,d,t)<w[t])return true;}
   return false;
+}
+function nightShort(sh,d){ // fewer RNs on nights than the N7 minimum
+  const w=DAILY_MIN[d%7];return dayTypeCount(sh,d,'N7')<((w&&w.N7)||0);
 }
 
 function renderTable(){
@@ -1421,7 +1437,7 @@ function renderTable(){
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Night shifts</td>';
-  for(let d=0;d<14;d++){h+=`<td class="ngt-c${T(d)}">${dayTypeCount(sh,d,'N7')}</td>`;}
+  for(let d=0;d<14;d++){h+=`<td class="ngt-c${nightShort(sh,d)?' short':''}${T(d)}">${dayTypeCount(sh,d,'N7')}</td>`;}
   h+='<td class="sep"></td><td class="sep"></td><td class="sep"></td></tr>';
 
   h+='<tr class="count-row"><td class="lbl-c">Total per day</td>';
@@ -1530,7 +1546,7 @@ function renderBanner(){
   }
   // 1) days below minimum staffing (any shift type under DAILY_MIN)
   const short=[];
-  for(let d=0;d<14;d++)if(dayShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
+  for(let d=0;d<14;d++)if(dayShort(sh,d)||nightShort(sh,d))short.push(`${DAYS[d%7]} ${fmt(days[d])}`);
   // 2) exact-7 breaks, named + flagged when the nurse is on the night turn
   const cr=conflictReport(cycleOffset,sh);
   const nm=i=>escapeHtml(names[i]);
@@ -1800,16 +1816,21 @@ function settAdd(g){addRN(g);renderSettings();}
 /* ===== Settings tab: Staffing minimums ===== */
 function renderMinTab(){
   const box=document.getElementById('settMinBody');if(!box)return;
-  let h='<div class="sett-min-grid"><div class="mh rl"></div>'+CORE_DAY.map(t=>`<div class="mh">${t}</div>`).join('')+'<div class="mh">total</div>';
+  ensureDailyMin();
+  const MIN_COLS=[...CORE_DAY,'N7'];        // day/eve shifts + the night requirement
+  let h='<div class="sett-min-grid" style="grid-template-columns:auto repeat('+(MIN_COLS.length+1)+',1fr)"><div class="mh rl"></div>'+
+    MIN_COLS.map(t=>`<div class="mh">${t}</div>`).join('')+'<div class="mh">total</div>';
   for(let d=0;d<7;d++){
     const wknd=d>=5;
     h+=`<div class="rl">${DAYS[d]}</div>`;
     let tot=0;
-    for(const t of CORE_DAY){
+    for(const t of MIN_COLS){
       const v=(DAILY_MIN[d]&&DAILY_MIN[d][t])||0; tot+=v;
-      // weekend day cover is the fixed 2-RN turn: only D7 is meaningful there
-      const dis=(wknd&&t!=='D7');
-      h+=`<div><input class="min-num${v?'':' zero'}" type="number" min="0" max="20" value="${v}" ${dis?'disabled title="Weekend cover is the fixed 2-RN turn"':''} onchange="minSet(${d},'${t}',this.value)"></div>`;
+      // weekend DAY cover is the fixed 2-RN turn (only D7); nights apply every day
+      const dis=(wknd&&t!=='D7'&&t!=='N7');
+      const tip=t==='N7'?'RNs on nights this day — staffed by the night cycle'
+                        :(dis?'Weekend day cover is the fixed 2-RN turn':'Minimum RNs on this shift');
+      h+=`<div><input class="min-num${v?'':' zero'}" type="number" min="0" max="20" value="${v}"${dis?' disabled':''} title="${tip}" onchange="minSet(${d},'${t}',this.value)"></div>`;
     }
     h+=`<div class="mh">${tot}</div>`;
   }
@@ -3037,7 +3058,7 @@ function downloadFairnessPDF(){
 
 /* ---------- init ---------- */
 loadState();
-syncN();ensureIds();ensureStaff();ensureFatigue();ensureNightList();   // fresh installs (no saved state) still need stable ids + staff rows + night cycle
+syncN();ensureIds();ensureStaff();ensureFatigue();ensureNightList();ensureDailyMin();   // fresh installs (no saved state) still need stable ids + staff rows + night cycle
 applyTheme();
 lockInit(); // show the password gate (or auto-unlock if already unlocked this session)
 // first ever open: anchor cycle 0 to this week's Monday and remember it
