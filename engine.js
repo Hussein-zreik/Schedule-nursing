@@ -228,17 +228,17 @@
 
     const TURN=turnFor(ctx,off);
     // ----- NIGHTS -----
+    // The night turn is placed automatically in BOTH modes: 2 from group A on the
+    // NA pattern (4-duty week Mon/Tue/Sat/Sun, 3-duty week Wed/Thu/Fri) and 2 from
+    // group B on the NB pattern — so every night is covered and each night nurse
+    // works exactly 7 nights. Any N7 the manager enters by hand is a lock: it is
+    // kept, and that nurse is also treated as a night nurse (kept off day quota).
     const nightA=TURN.nightA,nightB=TURN.nightB;
     const NA_DAYS=[0,1,5,6,9,10,11],NB_DAYS=[2,3,4,7,8,12,13];
-    let nightSet;
-    if(committedCycles[gk]){
-      nightSet=new Set();
-      for(let i=0;i<N;i++){for(let d=0;d<14;d++){if(locks[i][d]==='N7'){nightSet.add(i);break;}}}
-    }else{
-      nightSet=new Set([...nightA,...nightB]);
-      for(const i of nightA)for(const d of NA_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
-      for(const i of nightB)for(const d of NB_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
-    }
+    const nightSet=new Set([...nightA,...nightB]);
+    for(let i=0;i<N;i++)for(let d=0;d<14;d++)if(locks[i][d]==='N7'){nightSet.add(i);break;}
+    for(const i of nightA)for(const d of NA_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
+    for(const i of nightB)for(const d of NB_DAYS)if(locks[i][d]===null)sh[i][d]='N7';
 
     // ----- Rest across the cycle boundary (post-night / post-weekend) -----
     if(applyBoundary){

@@ -157,7 +157,11 @@ const handGen = await page.evaluate(() => {
   render(); generateFortnight();                       // fill the gaps + bake to a fixed grid
   const g1 = sched.sh.map(r => r.slice());
   const filled = g1.reduce((a, r) => a + r.filter(x => x !== 'OFF').length, 0);
-  const autoNights = g1.reduce((a, r) => a + r.filter(x => x === 'N7').length, 0);   // no N7 entered -> none auto-placed
+  // the 2A+2B night turn is placed automatically: exactly 2 per night, and each
+  // night nurse works 7 nights
+  const perNight = []; for (let d = 0; d < 14; d++) { let c = 0; for (let i = 0; i < g1.length; i++) if (g1[i][d] === 'N7') c++; perNight.push(c); }
+  const nightsCovered = perNight.every(x => x === 2);
+  let nightNot7 = 0; for (let i = 0; i < g1.length; i++) { const n = g1[i].filter(x => x === 'N7').length; if (n > 0 && n !== 7) nightNot7++; }
   const weekendSurplus = (() => { let bad = 0; for (const wd of [5,6,12,13]) { let d7=0,s10=0; for (let i=0;i<g1.length;i++){ if(g1[i][wd]==='D7')d7++; if(g1[i][wd]==='S10')s10++; } if (d7!==2||s10!==0) bad++; } return bad; })();
   // now edit ONE cell through the real cell-editor path
   mStaffId = null; mRn = 3; mDay = 4; mSel = (sched.sh[3][4] === 'OFF' ? 'D6' : 'OFF');
@@ -170,10 +174,11 @@ const handGen = await page.evaluate(() => {
   manualMode = false; render();
   const asAuto = JSON.stringify(sched.sh);
   manualMode = false; committedCycles = {}; cycleSeeds = {}; overrides = {}; frozen = {}; cycleOffset = 0; render();
-  return { filled, autoNights, weekendSurplus, changed, list, sameOnAuto: mine === asAuto };
+  return { filled, nightsCovered, nightNot7, weekendSurplus, changed, list, sameOnAuto: mine === asAuto };
 });
 check('Manual Generate fills the fortnight', handGen.filled > 50, handGen.filled + ' cells filled');
-check('Manual Generate places no auto nights', handGen.autoNights === 0, handGen.autoNights + ' N7');
+check('Manual Generate places the night turn (2 per night)', handGen.nightsCovered === true, 'some nights not 2');
+check('Manual Generate: each night nurse works 7 nights', handGen.nightNot7 === 0, handGen.nightNot7 + ' wrong');
 check('no weekend surplus in a generated fortnight', handGen.weekendSurplus === 0, handGen.weekendSurplus + ' weekend days wrong');
 check('editing a cell changes ONLY that cell (no cascade)', handGen.changed === 1, handGen.changed + ' cells changed: ' + handGen.list.join(','));
 check('a frozen fortnight looks identical on an Auto device', handGen.sameOnAuto === true);

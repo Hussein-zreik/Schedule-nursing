@@ -148,6 +148,15 @@ test('manual mode: an ungenerated fortnight stays blank', () => {
   const { sh } = Engine.computeSchedule(ctx(19, {}, { manualMode: true }), 0);
   assert.equal(sh.reduce((a, r) => a + r.filter(x => x !== 'OFF').length, 0), 0);
 });
+test('manual mode: a GENERATED fortnight places the 2A+2B night turn', () => {
+  // committed (generated) manual cycle: nights auto-placed, 2 per night, 7 each
+  const c = ctx(19, {}, { manualMode: true, committedCycles: { [Engine.isoKey(MONDAY)]: true } });
+  const { sh } = Engine.computeSchedule(c, 0);
+  for (let d = 0; d < 14; d++) assert.equal(cnt(sh, d, 'N7'), 2, `manual night day ${d}`);
+  const t = Engine.turnFor(c, 0);
+  assert.deepEqual(t.nightA, [0, 1]); assert.deepEqual(t.nightB, [10, 11]);
+  for (let i = 0; i < 19; i++) { const n = sh[i].filter(x => x === 'N7').length; if (n) assert.equal(n, 7, `n${i}`); }
+});
 
 /* ---------- custom night cycle (the Night-cycle Settings tab) ---------- */
 function ctxNL(N, nightList, seed = 12345) { const c = ctx(N, {}, { seed }); c.nightList = nightList; return c; }
