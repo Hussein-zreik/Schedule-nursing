@@ -228,6 +228,12 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .sc.s-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
 .sc.s-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .sc.s-OFF{background:transparent;color:var(--off-fg);border-color:transparent;font-size:var(--fs-xs);font-weight:400}
+/* full-cell fill: colour fills each shift cell edge-to-edge (a 1px gutter shows
+   the grid between), like an official duty roster. Scoped to shift cells only. */
+tbody td.sh-cell{padding:1px}
+tbody td.sh-cell .sc{display:block;width:100%;min-width:0;border:none;border-radius:0;padding:9px 4px}
+tbody td.sh-cell .sc.s-OFF{background:transparent}
+tbody td.sh-cell.is-today .sc.s-OFF{background:transparent}
 .count-row td{background:var(--panel-2);border-top:1px solid var(--border-2);font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:500;font-variant-numeric:tabular-nums;color:var(--muted);padding:6px 8px;text-align:center}
 .count-row td.lbl-c{text-align:left;color:var(--muted-2);padding-left:12px;font-size:var(--fs-xs);position:sticky;left:0;background:var(--panel-2);border-right:1px solid var(--border);font-family:var(--font-sans);font-weight:500}
 .count-row td.day-c{color:var(--d7-fg)}
@@ -1406,7 +1412,7 @@ function renderTable(){
     if(!ok)allOk=false;
     const wc=ok?'wk-ok':'wk-warn';
     h+=`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,${pos})"><td class="rn-col"><span class="drag-h" draggable="true" ondragstart="rowDragStart(event,${pos})" ondragend="rowDragEnd()" title="Drag to reorder">⠿</span><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
-    for(let d=0;d<14;d++){const s=sh[i][d];const fl=isFlagged(rid(i),days[d])?' flagged':'';h+=`<td class="${(T(d)+fl).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+    for(let d=0;d<14;d++){const s=sh[i][d];const fl=isFlagged(rid(i),days[d])?' flagged':'';h+=`<td class="sh-cell ${(T(d)+fl).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
   });
 
@@ -1433,7 +1439,7 @@ function renderTable(){
         const s=staffShiftAt(p.id,days[d]);
         if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
         const fl=isFlagged(p.id,days[d])?' flagged':'';
-        h+=`<td class="${(T(d)+fl).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+        h+=`<td class="sh-cell ${(T(d)+fl).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
       }
       h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
     }
