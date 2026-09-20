@@ -175,18 +175,19 @@
   //  - DEFAULT (ctx.nightList absent): the original group-based turn — 2 from
   //    group A + 2 from group B, weekend nights on the 3-duty group. Unchanged,
   //    so untouched rosters behave exactly as before.
-  //  - CUSTOM (ctx.nightList is an array): a single ordered night cycle. Each
-  //    fortnight the next 4 down the list take nights (2 per half of the days),
-  //    advancing and wrapping. Weekend day duty stays group-based but skips any
-  //    nurse on nights this fortnight.
+  //  - CUSTOM (ctx.nightList is an array): same 2-from-A + 2-from-B structure,
+  //    but each group's night pair is drawn ONLY from the RNs in the night list,
+  //    in their listed order. Remove an RN and they drop out of their group's
+  //    night rotation; a group with fewer than 2 eligible simply comes up short.
   function turnFor(ctx,off){
     const {a,b}=groupSeq(ctx);
     if(Array.isArray(ctx.nightList)){
-      const L=nightSeqOf(ctx),n=L.length,picks=[];
-      if(n>0){const k=((off*4)%n+n)%n;for(let t=0;t<4&&t<n;t++)picks.push(L[(k+t)%n]);}
-      const nset=new Set(picks);
-      return {nightA:picks.slice(0,2),nightB:picks.slice(2,4),
-        wkndA:pickAvoiding(a,off*2+2,nset,2),wkndB:pickAvoiding(b,off*2+2,nset,2)};
+      const g=ctx.groups,seq=nightSeqOf(ctx);
+      const seqA=seq.filter(i=>g[i]==='A'),seqB=seq.filter(i=>g[i]==='B');
+      const nightA=pairAt(seqA,off*2),nightB=pairAt(seqB,off*2);
+      const nset=new Set([...nightA,...nightB]);
+      // weekend day pair from the full group, skipping this fortnight's night nurses
+      return {nightA,nightB,wkndA:pickAvoiding(a,off*2+2,nset,2),wkndB:pickAvoiding(b,off*2+2,nset,2)};
     }
     const nightA=pairAt(a,off*2),nightB=pairAt(b,off*2);
     let wkndA=pairAt(a,off*2+2),wkndB=pairAt(b,off*2+2);
