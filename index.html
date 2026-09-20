@@ -2235,7 +2235,16 @@ function render(){buildSchedule();renderTable();renderLegend();updateModeUI();up
 function prev(){cycleOffset--;render();}
 function next(){cycleOffset++;render();}
 function goToday(){cycleOffset=autoOffset(document.getElementById('startDate').value);render();toast('Jumped to the current cycle');}
-function regen(){const b=snapshot();pushHistory('Regenerated schedule',b);seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;render();saveState();toast('New schedule generated — requests kept');}
+function regen(){
+  const b=snapshot();pushHistory('Regenerated schedule',b);
+  // rebuild the cycle on screen from scratch with the CURRENT rules: drop any
+  // baked (frozen) grid + its saved seed for this fortnight, so a stale grid from
+  // an earlier version (e.g. old night logic) is replaced, not kept.
+  const gk=cycleStartISO(cycleOffset);
+  delete frozen[gk];delete cycleSeeds[gk];
+  seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0;
+  render();saveState();toast('This cycle regenerated with the current rules — requests kept');
+}
 
 /* ---------- backup: export / import the whole schedule as a file ---------- */
 const BACKUP_VER=1;
