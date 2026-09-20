@@ -717,7 +717,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     </div>
 
     <div class="sett-panel" id="settPanel-night" hidden>
-      <div class="sett-note">The <b>night rotation</b>, in turn order. Each fortnight the next <b>4</b> down the list take nights (2 per night, 7 nights each), then it wraps to the top. Use ▲ / ▼ to change whose turn is next; remove an RN to take them off nights entirely (they just work days). Weekends and day quotas are unaffected. Fewer than 4 in the list means some nights are left uncovered for you to fill by hand.</div>
+      <div class="sett-note">Who is eligible for <b>nights</b>, in turn order. Each fortnight takes <b>2 from Group A and 2 from Group B</b> (2 per night, 7 nights each), advancing down each group's turn and wrapping. Use ▲ / ▼ to change whose turn is next within their group; remove an RN to take them off nights entirely (they just work days). Weekends and day quotas are unaffected. If a group has fewer than 2 eligible, those nights are left short for you to fill by hand.</div>
       <div id="settNightBody"></div>
     </div>
 
@@ -1713,9 +1713,10 @@ function renderNightTab(){
   else if(list.length<4)h+=`<div class="sett-swaphint">Only ${list.length} in the cycle — a fortnight needs 4, so some nights will be left uncovered.</div>`;
   list.forEach((id,pos)=>{
     const i=idxOfId(id),nm=i>=0?names[i]:'(removed)';
+    const gtag=i>=0?`<span class="rn-grp" style="color:var(--grp${groups[i]})">${groups[i]}</span>`:'';
     h+=`<div class="sett-row">
       <span class="sett-slot">${pos+1}</span>
-      <span class="sett-nm">${escapeHtml(nm)}</span>
+      <span class="sett-nm">${escapeHtml(nm)}</span>${gtag}
       <button class="sett-btn" onclick="nightMove('${id}',-1)" title="Earlier turn"${pos===0?' disabled style="opacity:.3"':''}>▲</button>
       <button class="sett-btn" onclick="nightMove('${id}',1)" title="Later turn"${pos===list.length-1?' disabled style="opacity:.3"':''}>▼</button>
       <button class="sett-btn del" onclick="nightRemove('${id}')" title="Remove from the night cycle">✕</button>

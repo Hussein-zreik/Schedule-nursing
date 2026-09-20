@@ -170,10 +170,24 @@ test('removed RNs never work nights', () => {
     assert.equal(nightsOf(sh, 1), 0, `off ${off}: n1 removed but has nights`);
   }
 });
-test('custom order sets whose turn is first', () => {
-  const list = ['n7', 'n2', 'n9', 'n4', 'n0', 'n1']; // n7,n2,n9,n4 are the first four
+test('custom list keeps 2 from Group A + 2 from Group B on nights', () => {
+  // everyone eligible (roster order): A = n0..n9, B = n10..n18
+  const all = Array.from({ length: 19 }, (_, i) => 'n' + i);
+  const t = Engine.turnFor(ctxNL(19, all), 0);
+  assert.deepEqual(t.nightA, [0, 1]);   // 2 from Group A
+  assert.deepEqual(t.nightB, [10, 11]); // 2 from Group B — NOT 4 from A
+});
+test('custom order sets whose turn is first, within each group', () => {
+  const list = ['n7', 'n12', 'n2', 'n15', 'n4']; // A: 7,2,4  B: 12,15
   const t = Engine.turnFor(ctxNL(19, list), 0);
-  assert.deepEqual([...t.nightA, ...t.nightB].sort((a, b) => a - b), [2, 4, 7, 9]);
+  assert.deepEqual(t.nightA, [7, 2]);   // first two Group-A entries in list order
+  assert.deepEqual(t.nightB, [12, 15]); // first two Group-B entries in list order
+});
+test('a group with <2 eligible comes up short, no borrowing', () => {
+  const list = ['n0', 'n1', 'n2', 'n10']; // A: 0,1,2  B: only 10
+  const t = Engine.turnFor(ctxNL(19, list), 0);
+  assert.equal(t.nightA.length, 2);
+  assert.deepEqual(t.nightB, [10]);      // only one Group-B night nurse — left short
 });
 test('custom list keeps <=3 consecutive and never over-quota', () => {
   const lists = [
