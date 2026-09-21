@@ -507,10 +507,15 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 <div id="lockScreen" class="lock-wrap">
   <div class="lock-box">
     <div class="lock-title">RN Rotating Schedule</div>
-    <div class="lock-sub">Enter password to continue</div>
-    <input class="ninput" id="pw1" type="password" placeholder="Password" autocomplete="off">
+    <div class="lock-sub">Sign in with your account to continue</div>
+    <input class="ninput" id="pwEmail" type="email" placeholder="Email" autocomplete="username" style="margin-bottom:8px">
+    <input class="ninput" id="pw1" type="password" placeholder="Password" autocomplete="current-password">
     <div class="lock-err" id="lockErr"></div>
-    <button class="btn accent" id="lockBtn" style="width:100%;justify-content:center" onclick="lockSubmit()">Unlock</button>
+    <button class="btn accent" id="lockBtn" style="width:100%;justify-content:center" onclick="lockSubmit()">Sign in</button>
+    <div class="lock-sub" id="lockLocalNote" style="display:none;margin:12px 0 0;text-align:center"></div>
+    <div class="mactions" id="lockLocalWrap" style="display:none;margin-top:8px">
+      <button class="btn sm" style="width:100%;justify-content:center" onclick="useLocalOnly()">Continue offline (this device only)</button>
+    </div>
   </div>
 </div>
 <div class="app" id="appRoot">
@@ -796,6 +801,10 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 <div class="modal-wrap" id="cloudModal">
   <div class="modal">
     <h3>Cloud sync</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-3)">
+      <span id="cloudAccount" style="font-size:var(--fs-xs);color:var(--muted-2)"></span>
+      <button class="btn sm" id="signOutBtn" style="display:none" onclick="lockApp()" title="Sign out on this device">Sign out</button>
+    </div>
     <div class="slbl">Unit code (share with your team)</div>
     <input class="ninput" id="unitInput" type="text" placeholder="e.g. ward-5b" autocomplete="off">
     <div id="cloudStatusMsg" style="font-size:var(--fs-xs);color:var(--muted-2);margin-bottom:var(--sp-4);line-height:var(--lh-normal)"></div>
@@ -1196,43 +1205,50 @@ const firebaseConfig={
   appId:"1:878601839531:web:f6c3d2e92ae0c80d1fa8ee"
 };
 let cloudDb=null,unitCode='',cloudUnsub=null,applyingRemote=false,cloudStatus='off',pushTimer=null,cloudTries=0;
+let unitMembers=[];   // account UIDs allowed to use this unit (mirrors the doc's `members`)
 let cloudAuth='off'; // 'ok' = signed in (rules can require auth) | 'pending' | 'off'
 function initCloud(){
   if(!window.firebase||!window.firebase.firestore){ // SDK still loading (deferred)
     if(cloudTries++<50)return setTimeout(initCloud,150);
-    cloudStatus='unavailable';updateCloudUI();return;
+    cloudStatus='unavailable';cloudAuth='off';updateCloudUI();offerLocalOnly();return;
   }
   try{ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig); cloudDb=firebase.firestore(); }
-  catch(e){ cloudStatus='unavailable';updateCloudUI();return; }
-  // Sign in anonymously so the Firestore rules can require an authenticated
-  // user (see firestore.rules + SECURITY.md). This is deliberately non-blocking:
-  // if Anonymous sign-in isn't enabled in the Firebase console yet, sync keeps
-  // working exactly as before instead of breaking — it just stays unprotected,
-  // which the Cloud panel reports.
-  try{
-    if(firebase.auth){
-      cloudAuth='pending';
-      firebase.auth().signInAnonymously()
-        .then(()=>{cloudAuth='ok';updateCloudUI();})
-        .catch(err=>{cloudAuth='off';console.warn('Cloud auth unavailable ('+(err&&err.code)+') — enable Anonymous sign-in in the Firebase console to secure the database');updateCloudUI();});
+  catch(e){ cloudStatus='unavailable';updateCloudUI();offerLocalOnly();return; }
+  if(!firebase.auth){cloudStatus='unavailable';updateCloudUI();offerLocalOnly();return;}
+  // The signed-in account drives everything: the gate, and cloud access. The
+  // session is persisted by Firebase, so this fires on every reload without a
+  // fresh sign-in (and works offline once the device has signed in once).
+  cloudAuth='pending';updateCloudUI();
+  firebase.auth().onAuthStateChanged(user=>{
+    const real=user&&!user.isAnonymous;
+    authUser=real?user:null;
+    if(real){
+      cloudAuth='ok';localOnly=false;unlockApp();
+      try{ const saved=localStorage.getItem('rn_unit'); if(saved)connectCloud(saved); else updateCloudUI(); }
+      catch(e){ updateCloudUI(); }
+    }else{
+      cloudAuth='off';
+      if(cloudUnsub){cloudUnsub();cloudUnsub=null;}
+      unitMembers=[];cloudStatus='off';updateCloudUI();
+      if(!localOnly)lockEl('lockScreen').classList.remove('unlocked');
     }
-  }catch(e){cloudAuth='off';}
-  try{ const saved=localStorage.getItem('rn_unit'); if(saved)connectCloud(saved); else updateCloudUI(); }
-  catch(e){ updateCloudUI(); }
+  });
 }
 function sanitizeCode(c){return String(c||'').trim().toLowerCase().replace(/[^a-z0-9-]+/g,'-').replace(/^-+|-+$/g,'');}
 function connectCloud(code){
   code=sanitizeCode(code);
   if(cloudUnsub){cloudUnsub();cloudUnsub=null;}
-  unitCode=code;
+  unitCode=code;unitMembers=[];
   try{localStorage.setItem('rn_unit',code);}catch(e){}
   if(!code||!cloudDb){cloudStatus=code?'unavailable':'off';updateCloudUI();return;}
+  if(!authUser){cloudStatus='off';updateCloudUI();return;}   // cloud needs a real account
   cloudStatus='connecting';updateCloudUI();
   const ref=cloudDb.collection('schedules').doc(code);
   cloudUnsub=ref.onSnapshot(snap=>{
     if(snap.metadata.hasPendingWrites)return;         // ignore our own local echo
     if(!snap.exists){ pushCloud(); cloudStatus='synced'; updateCloudUI(); return; } // seed a new unit
     const data=snap.data();
+    unitMembers=Array.isArray(data&&data.members)?data.members:[];
     if(data&&data.state&&!pushTimer){ // skip while we have unpushed local edits (keep ours)
       if(JSON.stringify(data.state)!==JSON.stringify(cloudStateObj())){ // only if actually different
         applyingRemote=true; applyStateObject(data.state);
@@ -1242,7 +1258,12 @@ function connectCloud(code){
       }
     }
     cloudStatus='synced';updateCloudUI();
-  },err=>{ console.error('cloud sync error',err); cloudStatus='error'; updateCloudUI(); });
+  },err=>{
+    console.error('cloud sync error',err);
+    // permission-denied = this account is not a member of that unit
+    cloudStatus=(err&&err.code==='permission-denied')?'denied':'error';
+    updateCloudUI();
+  });
 }
 function disconnectCloud(){ if(cloudUnsub){cloudUnsub();cloudUnsub=null;} unitCode=''; try{localStorage.removeItem('rn_unit');}catch(e){} cloudStatus='off'; updateCloudUI(); toast('Cloud sync turned off'); }
 function cloudSave(){ // called from saveState; debounced push
@@ -1254,66 +1275,116 @@ function pushCloud(){
   pushTimer=null; // clear the pending-push flag; if left set, the snapshot guard
                   // below (`!pushTimer`) stayed false forever and this device
                   // stopped accepting ANY remote update after its first edit.
-  if(!unitCode||!cloudDb)return;
-  cloudDb.collection('schedules').doc(unitCode).set({state:cloudStateObj(),updatedAt:Date.now()})
-    .then(()=>{cloudStatus='synced';updateCloudUI();})
-    .catch(e=>{console.error('cloud push failed',e);cloudStatus='error';updateCloudUI();});
+  if(!unitCode||!cloudDb||!authUser)return;
+  // Always write ourselves into `members`: the rules require it, and it stops a
+  // unit ever being saved in a state that locks out the person saving it.
+  const members=[...new Set([...(unitMembers||[]),authUser.uid])];
+  cloudDb.collection('schedules').doc(unitCode)
+    .set({state:cloudStateObj(),members,updatedAt:Date.now()})
+    .then(()=>{unitMembers=members;cloudStatus='synced';updateCloudUI();})
+    .catch(e=>{
+      console.error('cloud push failed',e);
+      cloudStatus=(e&&e.code==='permission-denied')?'denied':'error';updateCloudUI();
+    });
 }
 function updateCloudUI(){
   const b=document.getElementById('cloudBtn'); if(!b)return;
   const cloud='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A4.5 4.5 0 0 1 18 18z"/></svg>';
-  const map={off:['Cloud','',''],connecting:['Syncing…','warn',''],synced:['Synced','ok',unitCode],error:['Cloud error','bad',''],unavailable:['Cloud offline','',''] };
+  const map={off:['Cloud','',''],connecting:['Syncing…','warn',''],synced:['Synced','ok',unitCode],
+    denied:['No access','bad',''],error:['Cloud error','bad',''],unavailable:['Cloud offline','','']};
   const [label,cls]=map[cloudStatus]||map.off;
   b.className='btn ghost cloud-'+(cls||'');
   b.innerHTML=cloud+'<span class="btxt">'+(cloudStatus==='synced'?('Synced · '+unitCode):label)+'</span>';
   const msg=document.getElementById('cloudStatusMsg');
-  if(msg){const m={off:'Not connected. Enter a unit code and Connect to share this schedule live across devices.',connecting:'Connecting…',synced:'✓ Live-syncing as "'+unitCode+'". Anyone who enters this code shares this schedule.',error:'Connection error — check your unit code and internet, or the Firestore security rules.',unavailable:'Cloud unavailable (could not load Firebase). The app still works and saves locally.'};
+  if(msg){
+    const who=authUser?(authUser.email||'your account'):null;
+    const m={
+      off: authUser?'Signed in as '+who+'. Enter a unit code and Connect to share this schedule live across devices.'
+                   :'Not signed in. '+(localOnly?'Working offline on this device — cloud sync is off.':'Sign in to use cloud sync.'),
+      connecting:'Connecting…',
+      synced:'✓ Live-syncing "'+unitCode+'" as '+who+'. Only the '+(unitMembers.length||1)+' account'+((unitMembers.length||1)>1?'s':'')+' on this unit can open it.',
+      denied:'This account is not a member of unit "'+unitCode+'". Ask whoever set it up to add you, or use a unit you belong to.',
+      error:'Connection error — check your internet, or that the Firestore rules are published (see SECURITY.md).',
+      unavailable:'Cloud unavailable (could not load Firebase). The app still works and saves locally.'};
     let txt=m[cloudStatus]||m.off;
-    // tell the user plainly whether the database itself is protected
     if(cloudStatus==='synced'||cloudStatus==='connecting')
-      txt+=cloudAuth==='ok'?'  🔒 Database secured (signed in).'
-                           :'  ⚠ Database NOT secured — anyone who finds it can read or change it. See SECURITY.md.';
-    msg.textContent=txt;}
+      txt+=cloudAuth==='ok'?'  🔒 Protected: a real account that belongs to this unit is required.'
+                           :'  ⚠ Not signed in.';
+    msg.textContent=txt;
+  }
+  // show who is signed in + a way out
+  const acct=document.getElementById('cloudAccount');
+  if(acct)acct.textContent=authUser?('Signed in as '+(authUser.email||authUser.uid)):(localOnly?'Offline — not signed in':'Not signed in');
+  const so=document.getElementById('signOutBtn'); if(so)so.style.display=authUser?'':'none';
   const inp=document.getElementById('unitInput'); if(inp&&unitCode&&!inp.value)inp.value=unitCode;
 }
 function openCloud(){updateCloudUI();const inp=document.getElementById('unitInput');if(inp)inp.value=unitCode;document.getElementById('cloudModal').classList.add('open');}
 function closeCloud(){document.getElementById('cloudModal').classList.remove('open');}
 function connectFromInput(){const c=sanitizeCode(document.getElementById('unitInput').value);if(!c){toast('Enter a unit code first');return;}connectCloud(c);toast('Cloud sync on · '+c);}
 
-/* ---------- password lock (one fixed password for everyone) ---------- */
-// The only accepted password, stored as a salted SHA-256 hash (not readable).
-// To change it, replace this value with the hash of the new password.
-const PW_HASH='s81d1e70cc34a3ab74777812ca6bb7e9077a19435dddb88ebbe0bae615f2a1594';
-async function hashPw(s){
-  try{ if(window.crypto&&crypto.subtle){
-    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rn-salt:'+s));
-    return 's'+[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-  } }catch(e){}
-  let h=5381>>>0;const t='rn-salt:'+s;for(let i=0;i<t.length;i++)h=(((h<<5)+h)+t.charCodeAt(i))>>>0;return 'f'+h.toString(16);
-}
+/* ---------- sign-in gate (real accounts, verified by Firebase) ----------
+   The old gate compared a SHA-256 hash that shipped in this page, so the
+   password could be brute-forced offline and the screen was only an overlay
+   over already-loaded data. Credentials are now checked by Firebase Auth on
+   the server, and — far more importantly — CLOUD DATA IS PROTECTED BY THE
+   FIRESTORE RULES, not by this screen: without a real account that is a member
+   of the unit, the schedule cannot be read at all (see firestore.rules).
+
+   Offline: Firebase keeps the session on the device, so sign-in is needed only
+   once per device; after that it works with no connection. If Firebase cannot
+   load at all, the app offers a LOCAL-ONLY mode that never touches the cloud —
+   it can only ever show data already on this device. */
+let authUser=null;          // the signed-in account (null = not signed in)
+let localOnly=false;        // running without cloud (Firebase unavailable)
 function lockEl(id){return document.getElementById(id);}
+function authReady(){return !!(window.firebase&&firebase.auth);}
+function lockErr(msg){const e=lockEl('lockErr');if(e)e.textContent=msg||'';}
 async function lockSubmit(){
-  const err=lockEl('lockErr'),p1=lockEl('pw1').value;
-  if(!p1){err.textContent='Enter the password';return;}
-  if(await hashPw(p1)===PW_HASH){unlockApp();}
-  else{err.textContent='Wrong password';lockEl('pw1').value='';lockEl('pw1').focus();}
+  const email=(lockEl('pwEmail').value||'').trim(),pw=lockEl('pw1').value;
+  if(!email||!pw){lockErr('Enter your email and password');return;}
+  if(!authReady()){lockErr('Sign-in is unavailable — check your connection');return;}
+  lockErr('Signing in…');
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email,pw);
+    lockErr('');                       // onAuthStateChanged unlocks the app
+  }catch(err){
+    const c=err&&err.code||'';
+    lockErr(c==='auth/invalid-email'?'That email address is not valid'
+      :c==='auth/too-many-requests'?'Too many attempts — try again shortly'
+      :c==='auth/network-request-failed'?'No connection — try again'
+      :'Wrong email or password');
+    lockEl('pw1').value='';lockEl('pw1').focus();
+  }
 }
 function unlockApp(){
   try{sessionStorage.setItem('rn_unlocked','1');}catch(e){}
   lockEl('lockScreen').classList.add('unlocked');
-  lockEl('pw1').value='';lockEl('lockErr').textContent='';
+  lockEl('pw1').value='';lockErr('');
 }
-function lockApp(){ // re-lock manually (requires the password again)
+function lockApp(){          // sign out: drop the session and re-show the gate
   try{sessionStorage.removeItem('rn_unlocked');}catch(e){}
+  if(authReady()&&firebase.auth().currentUser)firebase.auth().signOut().catch(()=>{});
+  authUser=null;
   lockEl('lockScreen').classList.remove('unlocked');
-  setTimeout(()=>lockEl('pw1').focus(),40);
+  setTimeout(()=>lockEl('pwEmail').focus(),40);
 }
+// Firebase could not load (offline first run, or blocked): offer local-only use.
+// This can never reach cloud data — the rules require a real member account.
+function offerLocalOnly(){
+  const n=lockEl('lockLocalNote'),w=lockEl('lockLocalWrap');
+  if(n)  {n.style.display='';n.textContent='Cannot reach the sign-in service. You can work offline on this device; cloud sync stays off until you sign in.';}
+  if(w)w.style.display='';
+}
+function useLocalOnly(){localOnly=true;unlockApp();updateCloudUI&&updateCloudUI();}
 function lockInit(){
+  // already unlocked this session (also the hook the test suite uses)
   let unlocked=false;try{unlocked=sessionStorage.getItem('rn_unlocked')==='1';}catch(e){}
-  if(unlocked){lockEl('lockScreen').classList.add('unlocked');return;}
-  setTimeout(()=>lockEl('pw1').focus(),50);
+  if(unlocked){lockEl('lockScreen').classList.add('unlocked');}
+  else setTimeout(()=>lockEl('pwEmail').focus(),50);
+  if(!authReady())setTimeout(()=>{if(!authReady())offerLocalOnly();},2500);
 }
 lockEl('pw1').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();lockSubmit();}});
+lockEl('pwEmail').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();lockEl('pw1').focus();}});
 
 /* ---------- change memory (history + undo) ---------- */
 // undo memory: the `undo` fields of PERSIST, deep-cloned (includes the manual-mode
