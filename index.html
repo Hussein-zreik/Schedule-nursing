@@ -37,6 +37,7 @@
   --row-hover:#1a1f28;
   --today-bg:rgba(122,184,245,0.10);--today-line:#6aa9ff;
   --flag:#ff5a4d;--flag-line:rgba(255,90,77,0.55);
+  --note:#8aa0bb;
   --grid-bg:#0f1218;
   --shadow:0 12px 40px rgba(0,0,0,.55);
   --d6-bg:#12263d;--d6-fg:#7ab8f5;--d6-bd:#1e3f63;
@@ -62,6 +63,7 @@
   --row-hover:#f2f5f9;
   --today-bg:rgba(22,104,184,0.08);--today-line:#1668b8;
   --flag:#c9402f;--flag-line:rgba(201,64,47,0.5);
+  --note:#5b7a9e;
   --grid-bg:#ffffff;
   --sh-1:0 1px 2px rgba(20,30,50,.08);--sh-2:0 12px 40px rgba(20,30,50,.16);
   --focus:#1668b8;
@@ -205,6 +207,11 @@ tbody tr:hover td.is-today{background:var(--today-bg)}
 tbody tr td.flagged{position:relative;box-shadow:inset 0 0 0 2px var(--flag-line)}
 tbody tr td.flagged::after{content:"";position:absolute;top:0;right:0;border-width:0 11px 11px 0;border-style:solid;border-color:transparent var(--flag) transparent transparent;pointer-events:none}
 #flagCellBtn.on{color:#fff;background:var(--flag);border-color:var(--flag)}
+/* commented cell: small wedge bottom-LEFT (the flag uses top-right, so a cell
+   can carry both); the comment itself is the cell's tooltip */
+tbody tr td.has-note{position:relative}
+tbody tr td.has-note::before{content:"";position:absolute;bottom:0;left:0;border-width:9px 0 0 9px;
+  border-style:solid;border-color:transparent transparent transparent var(--note);pointer-events:none}
 tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s}
 tbody tr:hover{background:var(--row-hover)}
 tbody tr td{padding:6px 8px;text-align:center;vertical-align:middle}
@@ -832,6 +839,8 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <div class="modal">
     <h3 id="mTitle">Edit shift</h3>
     <div class="mopts" id="mOpts"></div>
+    <div class="slbl" style="margin-top:var(--sp-3)">Comment <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted-3)">— optional, shows on hover</span></div>
+    <textarea class="ninput" id="mNoteIn" rows="2" maxlength="300" placeholder="e.g. swapped with RN 7 · covering sick leave · why this is flagged" style="resize:vertical;line-height:var(--lh-normal)"></textarea>
     <div class="mactions" style="justify-content:space-between">
       <span style="display:flex;gap:8px">
         <button class="btn" id="flagCellBtn" onclick="toggleFlagBtn()" title="Flag this cell so it stands out on the schedule">⚐ Flag</button>
@@ -1071,8 +1080,15 @@ function isFlagged(id,dateObj){const o=flags[isoKey(dateObj)];return !!(o&&o[id]
 function setFlag(id,dateObj,on){const k=isoKey(dateObj);
   if(on){if(!flags[k])flags[k]={};flags[k][id]=true;}
   else if(flags[k]){delete flags[k][id];if(!Object.keys(flags[k]).length)delete flags[k];}}
+let notes={};     // { 'YYYY-MM-DD': { id: 'text' } } — a comment on one duty (why it's flagged, a swap, a note for the next manager)
+function noteFor(id,dateObj){const o=notes[isoKey(dateObj)];return (o&&o[id])||'';}
+function setNote(id,dateObj,txt){
+  const k=isoKey(dateObj),v=String(txt||'').trim().slice(0,300);
+  if(v){if(!notes[k])notes[k]={};notes[k][id]=v;}
+  else if(notes[k]){delete notes[k][id];if(!Object.keys(notes[k]).length)delete notes[k];}
+}
 let history=[];   // change memory: [{t, label, snap}] snap = state BEFORE the change
-let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null,mFlag=false;
+let mRn=null,mDay=null,mSel=null,mEditIdx=null,mStaffId=null,mFlag=false,mNote='';
 const HIST_MAX=100;
 
 /* ---------- persistence: one registry is the single source of truth ----------
@@ -1102,6 +1118,7 @@ const PERSIST=[
   {k:'cycleSeeds', sync:1,undo:1,get:()=>cycleSeeds,      apply:s=>{if(s.cycleSeeds&&typeof s.cycleSeeds==='object')cycleSeeds=s.cycleSeeds;},  set:v=>{cycleSeeds=clone(v);}},
   {k:'frozen',     sync:1,undo:1,get:()=>frozen,          apply:s=>{frozen=(s.frozen&&typeof s.frozen==='object')?s.frozen:{};},                set:v=>{frozen=clone(v);}},
   {k:'flags',      sync:1,undo:1,get:()=>flags,           apply:s=>{flags=(s.flags&&typeof s.flags==='object')?s.flags:{};},                    set:v=>{flags=clone(v);}},
+  {k:'notes',      sync:1,undo:1,get:()=>notes,           apply:s=>{notes=(s.notes&&typeof s.notes==='object')?s.notes:{};},                    set:v=>{notes=clone(v);}},
   {k:'startDate',  sync:1,      get:()=>document.getElementById('startDate').value||startDateStr, apply:s=>{if(typeof s.startDate==='string')startDateStr=s.startDate;}},
   {k:'fatigue',    sync:1,      get:()=>fatigue,          apply:s=>{if(s.fatigue&&typeof s.fatigue==='object')fatigue=s.fatigue; ensureFatigue();}},
   {k:'dailyMin',   sync:1,      get:()=>DAILY_MIN,        apply:s=>{if(Array.isArray(s.dailyMin)&&s.dailyMin.length===7&&s.dailyMin.every(x=>x&&typeof x==='object'))DAILY_MIN=s.dailyMin;}},
@@ -1502,7 +1519,10 @@ function renderTable(){
     if(!ok)allOk=false;
     const wc=ok?'wk-ok':'wk-warn';
     h+=`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,${pos})"><td class="rn-col"><span class="drag-h" draggable="true" ondragstart="rowDragStart(event,${pos})" ondragend="rowDragEnd()" title="Drag to reorder">⠿</span><span class="rn-name" onclick="openNameM(${i})">${escapeHtml(names[i])}</span><span class="rn-grp" style="color:${gc}">${groups[i]}</span></td>`;
-    for(let d=0;d<14;d++){const s=sh[i][d];const fl=isFlagged(rid(i),days[d])?' flagged':'';h+=`<td class="sh-cell ${(T(d)+fl).trim()}" onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+    for(let d=0;d<14;d++){const s=sh[i][d];
+      const fl=isFlagged(rid(i),days[d])?' flagged':'';
+      const nt=noteFor(rid(i),days[d]);
+      h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
   });
 
@@ -1529,7 +1549,8 @@ function renderTable(){
         const s=staffShiftAt(p.id,days[d]);
         if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
         const fl=isFlagged(p.id,days[d])?' flagged':'';
-        h+=`<td class="sh-cell ${(T(d)+fl).trim()}" onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+        const nt=noteFor(p.id,days[d]);
+        h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
       }
       h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
     }
@@ -2552,6 +2573,7 @@ function openCellM(ri,di){
   const hasEntry=overrides[k]&&overrides[k][rid(ri)]!==undefined;
   document.getElementById('resetCellBtn').style.display=hasEntry?'':'none';
   mFlag=isFlagged(rid(ri),sched.days[di]);updateFlagBtn();
+  mNote=noteFor(rid(ri),sched.days[di]);document.getElementById('mNoteIn').value=mNote;
   document.getElementById('cellModal').classList.add('open');
 }
 // support-staff cell: same picker, but written to staffShifts (no RN rules involved)
@@ -2562,6 +2584,7 @@ function openStaffCellM(id,di){
   document.getElementById('mOpts').innerHTML=shiftOptionsHTML();
   document.getElementById('resetCellBtn').style.display='none';   // staff cells are already manual
   mFlag=isFlagged(id,sched.days[di]);updateFlagBtn();
+  mNote=noteFor(id,sched.days[di]);document.getElementById('mNoteIn').value=mNote;
   document.getElementById('cellModal').classList.add('open');
 }
 function updateFlagBtn(){const b=document.getElementById('flagCellBtn');if(!b)return;
@@ -2576,22 +2599,27 @@ function shiftOptionsHTML(){
 }
 function pickSh(s){mSel=s;document.querySelectorAll('#mOpts .mbtn').forEach(b=>b.classList.toggle('sel',b.dataset.s===s));}
 // undo-history label for a cell edit: the shift change if any, otherwise the flag change
-function cellHistLabel(nm,d,old,shiftChg,flagChg){
+function cellHistLabel(nm,d,old,shiftChg,flagChg,noteChg){
   const dk=`${DAYS[d%7]} ${fmt(sched.days[d])}`;
   if(shiftChg)return `${nm} · ${dk}: ${old==='OFF'?'Off':old} → ${mSel==='OFF'?'Off':mSel}`;
-  return `${nm} · ${dk}: ${mFlag?'flagged ⚑':'flag removed'}`;
+  if(flagChg)return `${nm} · ${dk}: ${mFlag?'flagged ⚑':'flag removed'}`;
+  return `${nm} · ${dk}: ${mNote?'comment added':'comment removed'}`;
 }
 function saveCell(){
+  const noteBox=document.getElementById('mNoteIn');
+  mNote=noteBox?String(noteBox.value||'').trim().slice(0,300):mNote;
   if(mStaffId!==null&&mDay!==null){          // support-staff cell
     const p=staff.find(x=>x.id===mStaffId);
     const dObj=sched.days[mDay];
     const old=staffShiftAt(mStaffId,dObj);
     const flagChg=isFlagged(mStaffId,dObj)!==mFlag;
-    if(old!==mSel||flagChg){
+    const noteChg=noteFor(mStaffId,dObj)!==mNote;
+    if(old!==mSel||flagChg||noteChg){
       const b=snapshot();
-      pushHistory(cellHistLabel(p?p.name:'Staff',mDay,old,old!==mSel,flagChg),b);
+      pushHistory(cellHistLabel(p?p.name:'Staff',mDay,old,old!==mSel,flagChg,noteChg),b);
       if(old!==mSel)setStaffShift(mStaffId,dObj,mSel);
       if(flagChg)setFlag(mStaffId,dObj,mFlag);
+      if(noteChg)setNote(mStaffId,dObj,mNote);
     }
     closeCell();renderTable();saveState();   // staff rows don't affect the RN schedule
     return;
@@ -2601,10 +2629,12 @@ function saveCell(){
     const old=sched.sh[mRn][mDay];
     const shiftChg=old!==mSel;
     const flagChg=isFlagged(rid(mRn),dObj)!==mFlag;
-    if(shiftChg||flagChg){
+    const noteChg=noteFor(rid(mRn),dObj)!==mNote;
+    if(shiftChg||flagChg||noteChg){
       const b=snapshot();
-      pushHistory(cellHistLabel(names[mRn],mDay,old,shiftChg,flagChg),b);
+      pushHistory(cellHistLabel(names[mRn],mDay,old,shiftChg,flagChg,noteChg),b);
       if(flagChg)setFlag(rid(mRn),dObj,mFlag);
+      if(noteChg)setNote(rid(mRn),dObj,mNote);
     }
     if(shiftChg){
       const k=isoKey(sched.days[mDay]);
