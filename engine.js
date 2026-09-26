@@ -289,8 +289,9 @@
       for(let i=0;i<N;i++){
         if(nightSet.has(i)){quota[i]=0;continue;}
         const isA=groups[i]==='A';let q=(isA?(week===0?4:3):(week===0?3:4));
-        // A requested VAC/HOL is an ENTRY that replaces a working shift.
-        for(let d=base7;d<base7+7;d++){const L=locks[i][d];if(L==='VAC'||L==='HOL')q--;}
+        // A VAC/HOL/SL entry replaces a working shift, so it uses up one of the
+        // week's duties rather than sitting on top of them.
+        for(let d=base7;d<base7+7;d++){const L=locks[i][d];if(L==='VAC'||L==='HOL'||L==='SL')q--;}
         quota[i]=Math.max(0,q);
       }
       const assigned=Array(N).fill(0);
