@@ -48,6 +48,7 @@
   --n7-bg:#20213f;--n7-fg:#a99ce4;--n7-bd:#372f5b;
   --hol-bg:#331214;--hol-fg:#f28585;--hol-bd:#5e2224;
   --vac-bg:#0f2434;--vac-fg:#7fd0f2;--vac-bd:#1c4a66;
+  --sl-bg:#2b211a;--sl-fg:#d6a87e;--sl-bd:#4b382a;
   --req-bg:#331528;--req-fg:#e894c7;--req-bd:#54223f;
   --off-fg:#666f7e;
   --scrim:rgba(6,8,12,0.78);
@@ -77,6 +78,7 @@
   --n7-bg:#cdc7ee;--n7-fg:#342c78;--n7-bd:#ab9fe0;
   --hol-bg:#f2c4c4;--hol-fg:#8a2020;--hol-bd:#e29d9d;
   --vac-bg:#b9dcec;--vac-fg:#0e4f64;--vac-bd:#8dc4da;
+  --sl-bg:#e0d3c4;--sl-fg:#6b4a2a;--sl-bd:#cab5a0;
   --req-bg:#e9c4dc;--req-fg:#7a2c58;--req-bd:#d79dbf;
   --off-fg:#8b94a2;
   --scrim:rgba(26,34,46,0.46);
@@ -135,6 +137,7 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .b-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
+.b-SL{background:var(--sl-bg);color:var(--sl-fg);border-color:var(--sl-bd)}
 .b-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .b-OFF{background:var(--panel);color:var(--muted-4);border-color:var(--border)}
 .summary-row{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-3)}
@@ -236,6 +239,7 @@ tbody tr.drag-over td.rn-col{box-shadow:inset 0 2px 0 0 var(--accent)}
 .sc.s-N7{background:var(--n7-bg);color:var(--n7-fg);border-color:var(--n7-bd)}
 .sc.s-HOL{background:var(--hol-bg);color:var(--hol-fg);border-color:var(--hol-bd)}
 .sc.s-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
+.sc.s-SL{background:var(--sl-bg);color:var(--sl-fg);border-color:var(--sl-bd)}
 .sc.s-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
 .sc.s-OFF{background:transparent;color:var(--off-fg);border-color:transparent;font-size:var(--fs-xs);font-weight:400}
 /* full-cell fill: colour fills each shift cell edge-to-edge (a 1px gutter shows
@@ -380,6 +384,7 @@ tbody td.sh-cell.is-today .sc.s-OFF{background:transparent}
 .mbtn.sel{border-color:var(--d6-bd);background:var(--d6-bg);color:var(--d6-fg)}
 .mbtn[data-s=HOL].sel{border-color:var(--hol-bd);background:var(--hol-bg);color:var(--hol-fg)}
 .mbtn[data-s=VAC].sel{border-color:var(--vac-bd);background:var(--vac-bg);color:var(--vac-fg)}
+.mbtn[data-s=SL].sel{border-color:var(--sl-bd);background:var(--sl-bg);color:var(--sl-fg)}
 .mbtn[data-s=REQ].sel{border-color:var(--req-bd);background:var(--req-bg);color:var(--req-fg)}
 .mbtn[data-s=N7].sel{border-color:var(--n7-bd);background:var(--n7-bg);color:var(--n7-fg)}
 .mbtn[data-s=OFF].sel{border-color:var(--border-3);background:var(--field-2);color:var(--muted)}
@@ -424,6 +429,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 .tracker-wrap tbody tr:hover td.tn{background:var(--row-hover)}
 .hol-val{color:var(--hol-fg);font-weight:600}
 .vac-val{color:var(--vac-fg);font-weight:600}
+.sl-val{color:var(--sl-fg);font-weight:600}
 .bal-low{color:var(--warn)!important}
 .bal-neg{color:var(--neg)!important}
 .tracker-note{font-size:var(--fs-xs);color:var(--muted-3);margin-top:var(--sp-2);font-weight:400}
@@ -469,6 +475,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     --n7-bg:#cdc7ee;--n7-fg:#342c78;--n7-bd:#ab9fe0;
     --hol-bg:#f2c4c4;--hol-fg:#8a2020;--hol-bd:#e29d9d;
     --vac-bg:#b9dcec;--vac-fg:#0e4f64;--vac-bd:#8dc4da;
+    --sl-bg:#e0d3c4;--sl-fg:#6b4a2a;--sl-bd:#cab5a0;
     --req-bg:#e9c4dc;--req-fg:#7a2c58;--req-bd:#d79dbf;
     --off-fg:#8b94a2;
     --row-hover:#ffffff;--shadow:none;--sh-1:none;--sh-2:none;
@@ -615,6 +622,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <span class="leg"><span class="leg-badge b-N7">N7</span>Night</span>
   <span class="leg"><span class="leg-badge b-HOL">Hol</span>Holiday</span>
   <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
+  <span class="leg"><span class="leg-badge b-SL">SL</span>Sick leave</span>
   <span class="leg"><span class="leg-badge b-REQ">Req</span>Req off</span>
   <span class="leg"><span class="leg-badge b-OFF">—</span>Off</span>
   <span class="leg" style="margin-left:8px"><span style="color:var(--grpA);font-weight:500">&#9632; Group A</span></span>
@@ -650,12 +658,12 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
 <div class="tracker-section" id="trackerSection">
   <button class="tracker-title" id="trackerToggle" onclick="toggleTracker()" aria-expanded="true" aria-controls="trackerBody" title="Show or hide the balances table">
     <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
-    Holiday &amp; Vacation balances
+    Leave balances
     <span class="tracker-count" id="trackerCount"></span>
     <svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
   </button>
   <div class="tracker-wrap" id="trackerBody"><table id="trackerTbl"></table></div>
-  <div class="tracker-note">Balances are editable. Used counts update automatically as Hol / Vac are assigned in the schedule above.</div>
+  <div class="tracker-note">Balances are editable. Used counts update automatically as Hol / Vac / SL are assigned in the schedule above. Sick leave is counted, not budgeted — there is no balance to draw down.</div>
 </div>
 </div>
 
@@ -902,7 +910,7 @@ const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 // the five core day shifts — the pool the auto-generator fills from (never custom),
 // the columns of the staffing-minimums grid, and the base of every derived table
 const CORE_DAY=['D6','D7','S8','S9','S10'];
-const CORE_LABELS={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',REQ:'Req off · Requested',OFF:'Day off'};
+const CORE_LABELS={D6:'D6 · 6am',D7:'D7 · 7am',S8:'S8 · 8am',S9:'S9 · 9am',S10:'S10 · 10am',N7:'N7 · Night',HOL:'Hol · Holiday',VAC:'Vac · Vacation',SL:'SL · Sick leave',REQ:'Req off · Requested',OFF:'Day off'};
 // user-defined EXTRA shift types — placed by hand, count as working shifts, but
 // never used by the automatic weekday fill. Defaults reproduce E10 and S11.
 let customShifts=[
@@ -913,7 +921,7 @@ let customShifts=[
 let DAY_SHIFT_TYPES=[],ALL_TYPES=[],REQ_TYPES=[],WORK_TYPES=new Set(),ENTRY_TYPES=new Set(),LABELS_M={},SHIFT_GROUPS=[];
 function ensureCustomShifts(){
   if(!Array.isArray(customShifts))customShifts=[];
-  const core=new Set([...CORE_DAY,'N7','HOL','VAC','REQ','OFF']),seen=new Set();
+  const core=new Set([...CORE_DAY,'N7','HOL','VAC','SL','REQ','OFF']),seen=new Set();
   customShifts=customShifts.filter(s=>s&&/^[A-Za-z0-9]{1,4}$/.test(s.code)&&!core.has(s.code)&&!seen.has(s.code)&&seen.add(s.code))
     .map(s=>({code:s.code,label:String(s.label||s.code).slice(0,24),color:/^#[0-9a-fA-F]{6}$/.test(s.color)?s.color:'#8f9cf0'}));
 }
@@ -922,16 +930,16 @@ function rebuildShifts(){
   const cc=customShifts.map(s=>s.code);
   DAY_SHIFT_TYPES=[...CORE_DAY,...cc];
   WORK_TYPES=new Set([...CORE_DAY,...cc,'N7']);
-  ENTRY_TYPES=new Set([...CORE_DAY,...cc,'N7','HOL','VAC']);
-  ALL_TYPES=[...CORE_DAY,...cc,'N7','HOL','VAC','REQ','OFF'];
-  REQ_TYPES=[...CORE_DAY,...cc,'N7','REQ','OFF','VAC','HOL'];
+  ENTRY_TYPES=new Set([...CORE_DAY,...cc,'N7','HOL','VAC','SL']);
+  ALL_TYPES=[...CORE_DAY,...cc,'N7','HOL','VAC','SL','REQ','OFF'];
+  REQ_TYPES=[...CORE_DAY,...cc,'N7','REQ','OFF','VAC','HOL','SL'];
   LABELS_M=Object.assign({},CORE_LABELS);for(const s of customShifts)LABELS_M[s.code]=s.code+' · '+s.label;
   SHIFT_GROUPS=[
     {label:'Day',types:['D6','D7']},
     {label:'Evening',types:['S8','S9','S10']},
     ...(cc.length?[{label:'Extended',types:cc}]:[]),
     {label:'Night',types:['N7']},
-    {label:'Leave',types:['HOL','VAC']},
+    {label:'Leave',types:['HOL','VAC','SL']},
     {label:'Off',types:['REQ','OFF']}
   ];
   injectShiftCSS();
@@ -1701,6 +1709,8 @@ function renderTracker(){
   h+='<th style="color:var(--vac-fg)">Vac balance</th>';
   h+='<th style="color:var(--vac-fg)">Vac used</th>';
   h+='<th style="color:var(--vac-fg)">Vac remaining</th>';
+  // sick leave has no entitlement to draw down, so it is a running count only
+  h+='<th style="color:var(--sl-fg)">SL used</th>';
   h+='</tr></thead><tbody>';
 
   normalizeOrder();
@@ -1708,6 +1718,7 @@ function renderTracker(){
     const gc=groups[i]==='A'?'var(--grpA)':'var(--grpB)';
     const holUsed=countForRn(i,'HOL');
     const vacUsed=countForRn(i,'VAC');
+    const slUsed=countForRn(i,'SL');
     const holRem=holBal[i]-holUsed;
     const vacRem=vacBal[i]-vacUsed;
     const holRemCls=holRem<0?'bal-neg':holRem<=2?'bal-low':'hol-val';
@@ -1720,6 +1731,7 @@ function renderTracker(){
       <td><input class="bal-input" type="number" min="0" max="99" value="${vacBal[i]}" onchange="setVacBal(${i},this.value)" style="color:var(--vac-fg)"></td>
       <td class="vac-val">${vacUsed}</td>
       <td class="${vacRemCls}">${vacRem}</td>
+      <td class="sl-val">${slUsed}</td>
     </tr>`;
   }
   h+='</tbody>';
@@ -1825,13 +1837,13 @@ function renderSettings(){
    A requested/manual entry on a cell is a LOCK: the generator places it and
    never overwrites it, so an entry sitting on a night-turn nurse's night day
    silently cancels that night. Find them so the banner can say so and the
-   manager can clear them. Genuine absences (Hol/Vac/Req off) are legitimate
+   manager can clear them. Genuine absences (Hol/Vac/SL/Req off) are legitimate
    reasons to miss a night and are reported separately, not treated as a fault. */
 const NA_PATTERN=[0,1,5,6,9,10,11],NB_PATTERN=[2,3,4,7,8,12,13];
 function nightBlockers(off){
   if(!sched)return [];
   const T=turnFor(off),days=sched.days,out=[];
-  const ABSENT=new Set(['HOL','VAC','REQ']);
+  const ABSENT=new Set(['HOL','VAC','SL','REQ']);
   const scan=(i,pat)=>{
     const id=rid(i),blocked=[],absent=[];
     for(const d of pat){const o=overrides[isoKey(days[d])];const v=o&&o[id];
@@ -1844,14 +1856,14 @@ function nightBlockers(off){
   return out;
 }
 // clear the day-shift entries that are cancelling this cycle's night turn
-// (holidays, vacations and requested-off are kept — those are real absences)
+// (holidays, vacations, sick leave and requested-off are kept — those are real absences)
 function freeNightTurn(){
   if(!sched)return;
   const bl=nightBlockers(cycleOffset).filter(x=>x.blocked.length);
   if(!bl.length){toast('Nothing is blocking this cycle\'s night turn');return;}
   const total=bl.reduce((a,x)=>a+x.blocked.length,0);
   const who=bl.map(x=>names[x.i]).join(', ');
-  if(!confirm(`Clear ${total} entr${total===1?'y':'ies'} that are cancelling night duties for: ${who}?\n\nHolidays, vacations and requested days off are kept.`))return;
+  if(!confirm(`Clear ${total} entr${total===1?'y':'ies'} that are cancelling night duties for: ${who}?\n\nHolidays, vacations, sick leave and requested days off are kept.`))return;
   const b=snapshot(),days=sched.days;
   for(const x of bl){const id=rid(x.i);
     for(const d of x.blocked){const k=isoKey(days[d]);const o=overrides[k];
@@ -1926,7 +1938,7 @@ function renderNightTab(){
       ${hard.length>1?'are':'is'} on the night turn but ${hard.length>1?'their':'that'} night days carry other entries, so those nights are <b>not staffed</b>.</div>
       <div class="mactions" style="margin-top:var(--sp-2)"><button class="btn sm" onclick="freeNightTurn()" title="Clear the day-shift entries cancelling this cycle's night turn">Free the night turn for this cycle</button></div>`;
   }
-  if(absent.length)h+=`<div class="sett-note" style="margin-top:var(--sp-2)">${absent.map(x=>escapeHtml(names[x.i])).join(', ')} ${absent.length>1?'have':'has'} a holiday/vacation/requested-off on a night day this cycle — those nights stay uncovered for you to fill by hand.</div>`;
+  if(absent.length)h+=`<div class="sett-note" style="margin-top:var(--sp-2)">${absent.map(x=>escapeHtml(names[x.i])).join(', ')} ${absent.length>1?'have':'has'} a holiday/vacation/sick leave/requested-off on a night day this cycle — those nights stay uncovered for you to fill by hand.</div>`;
   if(custom)h+=`<div class="mactions" style="margin-top:var(--sp-2)"><button class="btn sm" onclick="nightReset()" title="Back to the default: every RN eligible">Reset to default (everyone)</button></div>`;
   box.innerHTML=h;
 }
@@ -2082,7 +2094,7 @@ function addShift(){
   const color=document.getElementById('newShiftColor').value||'#4aa3df';
   const msg=document.getElementById('shiftMsg');
   if(!/^[A-Za-z0-9]{1,4}$/.test(code)){msg.textContent='Code must be 1–4 letters/numbers, no spaces.';return;}
-  const taken=new Set([...CORE_DAY,'N7','HOL','VAC','REQ','OFF',...customShifts.map(s=>s.code)]);
+  const taken=new Set([...CORE_DAY,'N7','HOL','VAC','SL','REQ','OFF',...customShifts.map(s=>s.code)]);
   if(taken.has(code)){msg.textContent=`"${code}" is already a shift code.`;return;}
   customShifts.push({code,label:label||code,color});
   rebuildShifts();render();saveState();renderSettings();
@@ -2768,11 +2780,11 @@ function exportRows(){
   return {rows,weekStart};
 }
 function trackerRows(){
-  const rows=[['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining']];
+  const rows=[['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining','SL used']];
   normalizeOrder();
   for(const i of order){
-    const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
-    rows.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu]);
+    const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC'),su=countForRn(i,'SL');
+    rows.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu,su]);
   }
   return rows;
 }
@@ -2786,7 +2798,7 @@ const XL_PAL={
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
     S:{D6:['FFC3DEF5','FF124A78'],D7:['FFB0D3F0','FF0E3F68'],S8:['FFBFE3C2','FF1C5E33'],
        S9:['FFB2DDB4','FF185629'],S10:['FFF2DCA0','FF6A4600'],N7:['FFCDC7EE','FF342C78'],
-       HOL:['FFF2C4C4','FF8A2020'],VAC:['FFB9DCEC','FF0E4F64'],REQ:['FFE9C4DC','FF7A2C58']}
+       HOL:['FFF2C4C4','FF8A2020'],VAC:['FFB9DCEC','FF0E4F64'],SL:['FFE0D3C4','FF6B4A2A'],REQ:['FFE9C4DC','FF7A2C58']}
   },
   dark:{
     grid:'FF0A0A0A',gridFg:'FFE8E6E0',header:'FF111111',headerFg:'FF8A8A8A',
@@ -2794,7 +2806,7 @@ const XL_PAL={
     border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
     S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
        S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
-       HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0'],REQ:['FF2A0A1E','FFE07DBF']}
+       HOL:['FF2A0A0A','FFF07070'],VAC:['FF0A1A2A','FF70C8F0'],SL:['FF2B211A','FFD6A87E'],REQ:['FF2A0A1E','FFE07DBF']}
   }
 };
 function colL(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
@@ -2840,8 +2852,8 @@ async function exportExcel(){
         if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
         else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
       }
-      // W1 / W2 / Total  — live formulas (count working = non-blank minus HOL/VAC)
-      // W1/W2 count scheduled ENTRIES: work shifts + Holiday + Vacation
+      // W1 / W2 / Total  — live formulas (count working = non-blank minus Req off)
+      // W1/W2 count scheduled ENTRIES: work shifts + Holiday + Vacation + Sick leave
       // (OFF is blank so COUNTA skips it; only Req off is excluded)
       const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"REQ")`;
       const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"REQ")`;
@@ -2910,10 +2922,10 @@ async function exportExcel(){
 
     /* ===== Sheet 2: Balances (live, references Schedule) ===== */
     const bs=wb.addWorksheet('Balances',{views:[{state:'frozen',ySplit:2}]});
-    bs.mergeCells(1,1,1,8);
-    const bt=bs.getCell(1,1);bt.value='Holiday & Vacation balances  (used counts pull live from the Schedule sheet)';
+    bs.mergeCells(1,1,1,9);
+    const bt=bs.getCell(1,1);bt.value='Leave balances  (used counts pull live from the Schedule sheet)';
     bt.fill=solid(P.title);bt.font={bold:true,size:13,color:{argb:P.titleFg}};bs.getRow(1).height=22;
-    const bh=['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining'];
+    const bh=['RN','Group','Hol balance','Hol used','Hol remaining','Vac balance','Vac used','Vac remaining','SL used'];
     bh.forEach((h,c)=>{const cell=bs.getCell(2,c+1);cell.value=h;cell.fill=solid(P.header);
       cell.font={bold:true,size:10,color:{argb:P.headerFg}};cell.alignment={horizontal:'center'};cell.border=allBorder;});
     order.forEach((i,pos)=>{
@@ -2928,8 +2940,10 @@ async function exportExcel(){
       set(6,vacBal[i]);
       set(7,{formula:`COUNTIF(Schedule!C${r}:P${r},"VAC")`});
       set(8,{formula:`F${r}-G${r}`},{bold:true});
+      // sick leave has no entitlement to draw down — a running count, no "remaining"
+      set(9,{formula:`COUNTIF(Schedule!C${r}:P${r},"SL")`});
     });
-    [3,4,5,6,7,8].forEach(c=>bs.getColumn(c).width=13);bs.getColumn(1).width=15;bs.getColumn(2).width=7;
+    [3,4,5,6,7,8,9].forEach(c=>bs.getColumn(c).width=13);bs.getColumn(1).width=15;bs.getColumn(2).width=7;
     // RULES: remaining < 0 red, low balance amber
     bs.addConditionalFormatting({ref:`E3:E${2+N}`,rules:[
       {type:'cellIs',operator:'lessThan',formulae:['0'],priority:1,style:{fill:solidCF(P.badBg),font:{bold:true,color:{argb:P.badFg}}}},
@@ -2965,7 +2979,7 @@ const PDF_COL={
   S8:[[191,227,194],[28,94,51]],S9:[[178,221,180],[24,86,41]],
   S10:[[242,220,160],[106,70,0]],N7:[[205,199,238],[52,44,120]],
   HOL:[[242,196,196],[138,32,32]],VAC:[[185,220,236],[14,79,100]],
-  REQ:[[233,196,220],[122,44,88]]
+  SL:[[224,211,196],[107,74,42]],REQ:[[233,196,220],[122,44,88]]
 };
 // shared PDF typography/colour so schedule, report and fairness look like one family
 const PDF_T={title:15,sub:9,section:11,ink:[23,27,34],subInk:[90,100,114],
@@ -3044,11 +3058,11 @@ function exportPDF(){
     // ----- balances table -----
     let y=doc.lastAutoTable.finalY+18;
     doc.setFont('helvetica','bold');doc.setFontSize(PDF_T.section);doc.setTextColor(...PDF_T.ink);
-    doc.text('Holiday & Vacation balances',24,y);
-    const thead=[['RN','Grp','Hol bal','Hol used','Hol rem','Vac bal','Vac used','Vac rem']];
+    doc.text('Leave balances',24,y);
+    const thead=[['RN','Grp','Hol bal','Hol used','Hol rem','Vac bal','Vac used','Vac rem','SL used']];
     const tbody=[];
-    for(const i of order){const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC');
-      tbody.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu]);}
+    for(const i of order){const hu=countForRn(i,'HOL'),vu=countForRn(i,'VAC'),su=countForRn(i,'SL');
+      tbody.push([names[i],groups[i],holBal[i],hu,holBal[i]-hu,vacBal[i],vu,vacBal[i]-vu,su]);}
     doc.autoTable({head:thead,body:tbody,startY:y+8,margin:{left:20,right:20},
       styles:{fontSize:8,halign:'center',cellPadding:3,lineColor:PDF_T.line,lineWidth:0.4,textColor:PDF_T.ink},
       headStyles:{fillColor:PDF_T.headBg,textColor:PDF_T.headInk,fontStyle:'bold'},
@@ -3074,7 +3088,7 @@ function monthlyReport(year,month){
   const anchor=getMonday(startDateStr?new Date(startDateStr):new Date());
   const cache={};
   const cyc=o=>(cache[o]||(cache[o]=computeSchedule(o)));
-  const rows=names.map(()=>({total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,REQ:0}));
+  const rows=names.map(()=>({total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,SL:0,REQ:0}));
   for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1)){
     const dd=new Date(d);dd.setHours(0,0,0,0);
     const idx=Math.round((dd-anchor)/86400000);
@@ -3097,8 +3111,8 @@ function renderReport(){
   const cols=['D6','D7','S8','S9','S10'];
   let h='<table><thead><tr><th class="rl">RN</th><th>Grp</th><th>Duties</th>';
   cols.forEach(c=>h+=`<th>${c}</th>`);
-  h+='<th>Nights</th><th>Hol</th><th>Vac</th><th>Req</th></tr></thead><tbody>';
-  const tot={total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,REQ:0};
+  h+='<th>Nights</th><th>Hol</th><th>Vac</th><th>SL</th><th>Req</th></tr></thead><tbody>';
+  const tot={total:0,D6:0,D7:0,S8:0,S9:0,S10:0,N7:0,HOL:0,VAC:0,SL:0,REQ:0};
   normalizeOrder();
   for(const i of order){
     const r=rows[i];for(const k in tot)tot[k]+=r[k];
@@ -3107,11 +3121,11 @@ function renderReport(){
     h+=`<tr><td class="rl">${escapeHtml(names[i])}</td><td style="color:${gc};font-weight:600">${groups[i]}</td>`;
     h+=`<td class="tot-col">${r.total}</td>`;
     cols.forEach(c=>h+=`<td class="${z(r[c]).trim()}">${r[c]}</td>`);
-    h+=`<td class="${z(r.N7).trim()}">${r.N7}</td><td class="${z(r.HOL).trim()}">${r.HOL}</td><td class="${z(r.VAC).trim()}">${r.VAC}</td><td class="${z(r.REQ).trim()}">${r.REQ}</td></tr>`;
+    h+=`<td class="${z(r.N7).trim()}">${r.N7}</td><td class="${z(r.HOL).trim()}">${r.HOL}</td><td class="${z(r.VAC).trim()}">${r.VAC}</td><td class="${z(r.SL).trim()}">${r.SL}</td><td class="${z(r.REQ).trim()}">${r.REQ}</td></tr>`;
   }
   h+='</tbody><tfoot><tr><td class="rl">Total</td><td></td>';
   h+=`<td>${tot.total}</td>`;cols.forEach(c=>h+=`<td>${tot[c]}</td>`);
-  h+=`<td>${tot.N7}</td><td>${tot.HOL}</td><td>${tot.VAC}</td><td>${tot.REQ}</td></tr></tfoot></table>`;
+  h+=`<td>${tot.N7}</td><td>${tot.HOL}</td><td>${tot.VAC}</td><td>${tot.SL}</td><td>${tot.REQ}</td></tr></tfoot></table>`;
   document.getElementById('reportBody').innerHTML=h;
 }
 function downloadReportPDF(){
@@ -3125,11 +3139,11 @@ function downloadReportPDF(){
     doc.text('RN Monthly Duty Report',24,26);
     doc.setFont('helvetica','normal');doc.setFontSize(PDF_T.sub);doc.setTextColor(...PDF_T.subInk);
     doc.text(`${label}  ·  generated ${fmt(new Date())} ${new Date().getFullYear()}`,24,40);
-    const head=[['RN','Grp','Duties','D6','D7','S8','S9','S10','Nights','Hol','Vac','Req']];
-    const body=[];const tot=['Total','',0,0,0,0,0,0,0,0,0,0];
+    const head=[['RN','Grp','Duties','D6','D7','S8','S9','S10','Nights','Hol','Vac','SL','Req']];
+    const body=[];const tot=['Total','',0,0,0,0,0,0,0,0,0,0,0];
     normalizeOrder();
     for(const i of order){const r=rows[i];
-      const row=[names[i],groups[i],r.total,r.D6,r.D7,r.S8,r.S9,r.S10,r.N7,r.HOL,r.VAC,r.REQ];
+      const row=[names[i],groups[i],r.total,r.D6,r.D7,r.S8,r.S9,r.S10,r.N7,r.HOL,r.VAC,r.SL,r.REQ];
       body.push(row);for(let k=2;k<row.length;k++)tot[k]+=row[k];}
     doc.autoTable({head,body,foot:[tot],startY:50,margin:{left:20,right:20},
       styles:{fontSize:8.5,halign:'center',cellPadding:3.5,lineColor:PDF_T.line,lineWidth:0.4,textColor:PDF_T.ink},

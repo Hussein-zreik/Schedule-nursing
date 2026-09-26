@@ -18,7 +18,7 @@ function test(name, fn) {
 
 const CORE = ['D6', 'D7', 'S8', 'S9', 'S10'];
 const WORK = new Set([...CORE, 'N7']);
-const ENTRY = new Set([...CORE, 'N7', 'HOL', 'VAC']);
+const ENTRY = new Set([...CORE, 'N7', 'HOL', 'VAC', 'SL']);
 const DMIN = [
   { D6: 2, D7: 2, S8: 1, S9: 2, S10: 1 }, { D6: 2, D7: 2, S8: 1, S9: 2, S10: 1 },
   { D6: 2, D7: 2, S8: 1, S9: 2, S10: 1 }, { D6: 2, D7: 2, S8: 1, S9: 2, S10: 1 },
@@ -125,6 +125,21 @@ test('a requested VAC is placed and never overwritten', () => {
   const day = Engine.isoKey(Engine.addDays(MONDAY, 2)); // Wed of cycle 0
   const { sh } = Engine.computeSchedule(ctx(19, { [day]: { n5: 'VAC' } }), 0);
   assert.equal(sh[5][2], 'VAC');
+});
+test('sick leave is placed and never overwritten', () => {
+  const day = Engine.isoKey(Engine.addDays(MONDAY, 2)); // Wed of cycle 0
+  const { sh } = Engine.computeSchedule(ctx(19, { [day]: { n5: 'SL' } }), 0);
+  assert.equal(sh[5][2], 'SL');
+});
+test('sick leave uses up a duty, like Hol and Vac', () => {
+  // SL on two days of week 1 -> two fewer day shifts that week, still 7 entries
+  const d0 = Engine.isoKey(Engine.addDays(MONDAY, 2));
+  const d1 = Engine.isoKey(Engine.addDays(MONDAY, 3));
+  const { sh } = Engine.computeSchedule(ctx(19, { [d0]: { n5: 'SL' }, [d1]: { n5: 'SL' } }), 0);
+  const w1 = sh[5].slice(0, 7);
+  assert.equal(w1.filter(x => x === 'SL').length, 2);
+  assert.ok(w1.filter(x => WORK.has(x)).length <= 2, 'SL should displace duties, not add to them');
+  assert.equal(sh[5].filter(x => ENTRY.has(x)).length, 7);
 });
 test('a requested duty stays put and the nurse still totals 7', () => {
   const day = Engine.isoKey(Engine.addDays(MONDAY, 3)); // Thu
