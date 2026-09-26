@@ -50,7 +50,7 @@
   --vac-bg:#0f2434;--vac-fg:#7fd0f2;--vac-bd:#1c4a66;
   --sl-bg:#2b211a;--sl-fg:#d6a87e;--sl-bd:#4b382a;
   --req-bg:#331528;--req-fg:#e894c7;--req-bd:#54223f;
-  --off-fg:#666f7e;
+  --off-fg:#8a94a4;
   --scrim:rgba(6,8,12,0.78);
 }
 [data-theme=light]{
@@ -80,7 +80,7 @@
   --vac-bg:#b9dcec;--vac-fg:#0e4f64;--vac-bd:#8dc4da;
   --sl-bg:#e0d3c4;--sl-fg:#6b4a2a;--sl-bd:#cab5a0;
   --req-bg:#e9c4dc;--req-fg:#7a2c58;--req-bd:#d79dbf;
-  --off-fg:#8b94a2;
+  --off-fg:#5a6472;
   --scrim:rgba(26,34,46,0.46);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -139,7 +139,8 @@ input[type=date]:focus{border-color:var(--border-3)}
 .b-VAC{background:var(--vac-bg);color:var(--vac-fg);border-color:var(--vac-bd)}
 .b-SL{background:var(--sl-bg);color:var(--sl-fg);border-color:var(--sl-bd)}
 .b-REQ{background:var(--req-bg);color:var(--req-fg);border-color:var(--req-bd)}
-.b-OFF{background:var(--panel);color:var(--muted-4);border-color:var(--border)}
+/* Off is the absence of a duty, so it gets no badge/fill anywhere — just the word in grey */
+.b-OFF{background:transparent;color:var(--off-fg);border-color:transparent;font-weight:400}
 .summary-row{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-3)}
 .banner{display:flex;align-items:flex-start;gap:var(--sp-2);font-size:var(--fs-sm);line-height:var(--lh-normal);padding:10px 14px;border-radius:var(--r-md);border:1px solid var(--border);margin-bottom:var(--sp-5)}
 .banner .bic{flex-shrink:0;font-size:var(--fs-base);margin-top:1px}
@@ -477,7 +478,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
     --vac-bg:#b9dcec;--vac-fg:#0e4f64;--vac-bd:#8dc4da;
     --sl-bg:#e0d3c4;--sl-fg:#6b4a2a;--sl-bd:#cab5a0;
     --req-bg:#e9c4dc;--req-fg:#7a2c58;--req-bd:#d79dbf;
-    --off-fg:#8b94a2;
+    --off-fg:#55606e;
     --row-hover:#ffffff;--shadow:none;--sh-1:none;--sh-2:none;
   }
   /* never carry a hover highlight onto paper */
@@ -624,7 +625,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
   <span class="leg"><span class="leg-badge b-VAC">Vac</span>Vacation</span>
   <span class="leg"><span class="leg-badge b-SL">SL</span>Sick leave</span>
   <span class="leg"><span class="leg-badge b-REQ">Req</span>Req off</span>
-  <span class="leg"><span class="leg-badge b-OFF">—</span>Off</span>
+  <span class="leg"><span class="leg-badge b-OFF">Off</span>Day off</span>
   <span class="leg" style="margin-left:8px"><span style="color:var(--grpA);font-weight:500">&#9632; Group A</span></span>
   <span class="leg"><span style="color:var(--grpB);font-weight:500">&#9632; Group B</span></span>
   <span class="leg"><span style="color:var(--flag);font-weight:600">&#9873; Flagged</span></span>
@@ -1530,7 +1531,7 @@ function renderTable(){
     for(let d=0;d<14;d++){const s=sh[i][d];
       const fl=isFlagged(rid(i),days[d])?' flagged':'';
       const nt=noteFor(rid(i),days[d]);
-      h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;}
+      h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openCellM(${i},${d})"><span class="sc s-${s}">${s==='OFF'?'Off':s}</span></td>`;}
     h+=`<td class="sep wk-num ${wc}">${w1}</td><td class="sep wk-num ${wc}">${w2}</td><td class="sep wk-num ${wc}">${tot}</td></tr>`;
   });
 
@@ -1558,7 +1559,7 @@ function renderTable(){
         if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);
         const fl=isFlagged(p.id,days[d])?' flagged':'';
         const nt=noteFor(p.id,days[d]);
-        h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'—':s}</span></td>`;
+        h+=`<td class="sh-cell ${(T(d)+fl+(nt?' has-note':'')).trim()}"${nt?` title="${escapeHtml(nt)}"`:''} onclick="openStaffCellM('${p.id}',${d})"><span class="sc s-${s}">${s==='OFF'?'Off':s}</span></td>`;
       }
       h+=`<td class="sep wk-num">${w1}</td><td class="sep wk-num">${w2}</td><td class="sep wk-num">${w1+w2}</td></tr>`;
     }
@@ -2756,7 +2757,7 @@ function exportRows(){
   for(const i of order){
     const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
     const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
-    rows.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
+    rows.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'Off':s),w1,w2,w1+w2]);
   }
   const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total per day',''];
   for(let d=0;d<14;d++){
@@ -2773,7 +2774,7 @@ function exportRows(){
     for(const p of staffOf(g.key)){
       let w1=0,w2=0;const cells=[];
       for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
-        if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'':s);}
+        if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'Off':s);}
       rows.push([p.name,'',...cells,w1,w2,w1+w2]);
     }
   }
@@ -2794,7 +2795,7 @@ function periodLabel(){const{weekStart}=sched;return `${isoKey(weekStart)}_to_${
 const XL_PAL={
   light:{
     grid:'FFFFFFFF',gridFg:'FF191D24',header:'FFEEF0F4',headerFg:'FF515A66',
-    title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',
+    title:'FFFFFFFF',titleFg:'FF0D1015',count:'FFEEF0F4',countFg:'FF4B535F',offFg:'FF5A6472',
     border:'FFD3D7DF',ok:'FF177D43',badBg:'FFFADEDE',badFg:'FFB62A2A',warnBg:'FFFAECC7',warnFg:'FF8A5200',
     S:{D6:['FFC3DEF5','FF124A78'],D7:['FFB0D3F0','FF0E3F68'],S8:['FFBFE3C2','FF1C5E33'],
        S9:['FFB2DDB4','FF185629'],S10:['FFF2DCA0','FF6A4600'],N7:['FFCDC7EE','FF342C78'],
@@ -2802,7 +2803,7 @@ const XL_PAL={
   },
   dark:{
     grid:'FF0A0A0A',gridFg:'FFE8E6E0',header:'FF111111',headerFg:'FF8A8A8A',
-    title:'FF0A0A0A',titleFg:'FFF0EDE8',count:'FF0D0D0D',countFg:'FF8A8A8A',
+    title:'FF0A0A0A',titleFg:'FFF0EDE8',count:'FF0D0D0D',countFg:'FF8A8A8A',offFg:'FF8A94A4',
     border:'FF222222',ok:'FF6FCF6F',badBg:'FF2A0A0A',badFg:'FFF07070',warnBg:'FF1F1400',warnFg:'FFC8870A',
     S:{D6:['FF0D1F35','FF5BA3E8'],D7:['FF0A1A2E','FF3D8FD6'],S8:['FF0D200D','FF5CBF5C'],
        S9:['FF0A190A','FF4AAD4A'],S10:['FF1F1400','FFC8870A'],N7:['FF1A0A2E','FFA07DE0'],
@@ -2847,16 +2848,17 @@ async function exportExcel(){
       grpC.font={color:{argb:P.gridFg},size:10};grpC.alignment={horizontal:'center'};grpC.border=allBorder;
       for(let d=0;d<14;d++){
         const cell=ws.getCell(r,3+d);const s=sh[i][d];
-        cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
+        cell.value=s==='OFF'?'Off':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
         const sc=P.S[s]||xlCustom(s);
         if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
+        else if(s==='OFF'){cell.fill=solid(P.grid);cell.font={color:{argb:P.offFg},size:10};}
         else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
       }
-      // W1 / W2 / Total  — live formulas (count working = non-blank minus Req off)
-      // W1/W2 count scheduled ENTRIES: work shifts + Holiday + Vacation + Sick leave
-      // (OFF is blank so COUNTA skips it; only Req off is excluded)
-      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"REQ")`;
-      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"REQ")`;
+      // W1 / W2 / Total — live formulas, so the counts follow your edits in Excel.
+      // W1/W2 count scheduled ENTRIES: work shifts + Holiday + Vacation + Sick leave.
+      // Off and Req off are written out as words, so both are subtracted back off.
+      const w1r=`COUNTA(C${r}:I${r})-COUNTIF(C${r}:I${r},"REQ")-COUNTIF(C${r}:I${r},"Off")`;
+      const w2r=`COUNTA(J${r}:P${r})-COUNTIF(J${r}:P${r},"REQ")-COUNTIF(J${r}:P${r},"Off")`;
       [['Q',w1r],['R',w2r],['S',`Q${r}+R${r}`]].forEach(([col,f],k)=>{
         const cell=ws.getCell(r,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
         cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
@@ -2894,13 +2896,14 @@ async function exportExcel(){
         for(let d=0;d<14;d++){
           const s=staffShiftAt(p.id,days[d]);
           const cell=ws.getCell(sr,3+d);
-          cell.value=s==='OFF'?'':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
+          cell.value=s==='OFF'?'Off':s;cell.alignment={horizontal:'center'};cell.border=allBorder;
           const sc=P.S[s]||xlCustom(s);
           if(sc){cell.fill=solid(sc[0]);cell.font={color:{argb:sc[1]},bold:true,size:10};}
+          else if(s==='OFF'){cell.fill=solid(P.grid);cell.font={color:{argb:P.offFg},size:10};}
           else{cell.fill=solid(P.grid);cell.font={color:{argb:P.gridFg},size:10};}
         }
-        const w1r=`COUNTA(C${sr}:I${sr})-COUNTIF(C${sr}:I${sr},"REQ")`;
-        const w2r=`COUNTA(J${sr}:P${sr})-COUNTIF(J${sr}:P${sr},"REQ")`;
+        const w1r=`COUNTA(C${sr}:I${sr})-COUNTIF(C${sr}:I${sr},"REQ")-COUNTIF(C${sr}:I${sr},"Off")`;
+        const w2r=`COUNTA(J${sr}:P${sr})-COUNTIF(J${sr}:P${sr},"REQ")-COUNTIF(J${sr}:P${sr},"Off")`;
         [['Q',w1r],['R',w2r],['S',`Q${sr}+R${sr}`]].forEach(([col,f],k)=>{
           const cell=ws.getCell(sr,17+k);cell.value={formula:f};cell.alignment={horizontal:'center'};
           cell.fill=solid(P.count);cell.font={bold:true,color:{argb:P.countFg}};cell.border=allBorder;
@@ -2982,7 +2985,7 @@ const PDF_COL={
   SL:[[224,211,196],[107,74,42]],REQ:[[233,196,220],[122,44,88]]
 };
 // shared PDF typography/colour so schedule, report and fairness look like one family
-const PDF_T={title:15,sub:9,section:11,ink:[23,27,34],subInk:[90,100,114],
+const PDF_T={title:15,sub:9,section:11,ink:[23,27,34],subInk:[90,100,114],offInk:[90,100,114],
   line:[205,210,218],headBg:[240,242,246],headInk:[64,74,90],footBg:[233,236,241],zebra:[248,249,251]};
 function exportPDF(){
   const J=window.jspdf&&window.jspdf.jsPDF;
@@ -3006,7 +3009,7 @@ function exportPDF(){
     for(const i of order){
       const w1=sh[i].slice(0,7).filter(s=>ENTRY_TYPES.has(s)).length;
       const w2=sh[i].slice(7,14).filter(s=>ENTRY_TYPES.has(s)).length;
-      body.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'':s),w1,w2,w1+w2]);
+      body.push([names[i],groups[i],...sh[i].map(s=>s==='OFF'?'Off':s),w1,w2,w1+w2]);
     }
     const dayRow=['Day shifts',''],ngtRow=['Night shifts',''],totRow=['Total/day',''];
     for(let d=0;d<14;d++){
@@ -3026,7 +3029,7 @@ function exportPDF(){
       for(const p of staffOf(g.key)){
         let w1=0,w2=0;const cells=[];
         for(let d=0;d<14;d++){const s=staffShiftAt(p.id,days[d]);
-          if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'':s);}
+          if(ENTRY_TYPES.has(s))(d<7?w1++:w2++);cells.push(s==='OFF'?'Off':s);}
         staffRowIdx.add(body.length);
         body.push([p.name,'',...cells,w1,w2,w1+w2]);
       }
@@ -3048,8 +3051,11 @@ function exportPDF(){
           data.cell.styles.fillColor=[238,240,244];data.cell.styles.textColor=[75,83,95];
           data.cell.styles.fontStyle='bold';if(c===0)data.cell.styles.halign='left';
         }
-        else if(c>=2&&c<=15){const col=PDF_COL[data.cell.raw]||pdfCustom(data.cell.raw);
-          if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}
+        else if(c>=2&&c<=15){
+          // Off carries no fill — it is the absence of a duty, not one of them
+          if(data.cell.raw==='Off'){data.cell.styles.textColor=PDF_T.offInk;}
+          else{const col=PDF_COL[data.cell.raw]||pdfCustom(data.cell.raw);
+            if(col){data.cell.styles.fillColor=col[0];data.cell.styles.textColor=col[1];data.cell.styles.fontStyle='bold';}}}
         else if(c>=16){data.cell.styles.fillColor=[238,240,244];data.cell.styles.fontStyle='bold';}
         if(isStaff&&c===0)data.cell.styles.halign='left';
       }
