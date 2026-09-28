@@ -141,6 +141,24 @@ test('sick leave uses up a duty, like Hol and Vac', () => {
   assert.ok(w1.filter(x => WORK.has(x)).length <= 2, 'SL should displace duties, not add to them');
   assert.equal(sh[5].filter(x => ENTRY.has(x)).length, 7);
 });
+test('a requested NIGHT still leaves the nurse their day duties', () => {
+  // a hand-entered N7 used to mark the nurse as a full-time night nurse for the
+  // whole fortnight, zeroing their day quota — they ended the cycle on 2 duties
+  const mon = Engine.isoKey(MONDAY), tue = Engine.isoKey(Engine.addDays(MONDAY, 1));
+  const { sh } = Engine.computeSchedule(ctx(19, { [mon]: { n6: 'N7' }, [tue]: { n6: 'N7' } }), 0);
+  assert.equal(sh[6][0], 'N7');
+  assert.equal(sh[6][1], 'N7');
+  assert.equal(sh[6].slice(0, 7).filter(x => ENTRY.has(x)).length, 4, 'week 1 still 4 for Group A');
+  assert.equal(sh[6].filter(x => ENTRY.has(x)).length, 7, 'fortnight still totals 7');
+});
+test('a nurse hand-given a full 7-night set gets no day duties on top', () => {
+  const over = {};
+  for (const d of [0, 1, 5, 6, 9, 10, 11])                    // the NA night pattern
+    over[Engine.isoKey(Engine.addDays(MONDAY, d))] = { n6: 'N7' };
+  const { sh } = Engine.computeSchedule(ctx(19, over), 0);
+  assert.equal(sh[6].filter(x => x === 'N7').length, 7);
+  assert.equal(sh[6].filter(x => ENTRY.has(x)).length, 7, 'nights ARE the fortnight');
+});
 test('a requested duty stays put and the nurse still totals 7', () => {
   const day = Engine.isoKey(Engine.addDays(MONDAY, 3)); // Thu
   const { sh } = Engine.computeSchedule(ctx(19, { [day]: { n8: 'S10' } }), 0);
