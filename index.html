@@ -2614,15 +2614,14 @@ function updateModeUI(){
   show('genBtn',on);                   // Manual: Generate (or Regenerate this fortnight)
   show('clearFnBtn',on);               // Manual: Clear this fortnight, generated or not
   set('genLbl',committed?'Regenerate':'Generate');
-  // keep Clear honest: greyed on an empty fortnight, and its tooltip names
-  // exactly what it would delete
+  // Clear stays live on EVERY cycle in manual mode. Disabling it on an empty
+  // fortnight made it look like it wasn't there at all (and killed its tooltip,
+  // so nothing explained why); clicking it on an empty one just says so.
   const c=document.getElementById('clearFnBtn');
   if(c&&on){
     const t=cycleTally(cycleOffset),parts=cycleTallyParts(t);
-    c.disabled=!t.total;
-    c.classList.toggle('is-disabled',!t.total);
     c.title=t.total?`Delete ${joinList(parts)} in this fortnight — Undo puts it all back`
-                   :'This fortnight is already empty';
+                   :'Nothing to clear — this fortnight is already empty';
   }
 }
 // changing the date re-anchors cycle 0 to that Monday, then jumps to today's cycle
