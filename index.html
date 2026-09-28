@@ -563,7 +563,7 @@ tbody tr.grp-row td.grp-lbl{position:sticky;left:0;background:var(--panel-2);bor
       <button class="btn primary" id="genBtn" onclick="generateFortnight()" style="display:none" title="Fill this empty fortnight, respecting the rules, turns and requests">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><span id="genLbl">Generate</span>
       </button>
-      <button class="btn" id="clearFnBtn" onclick="clearFortnight()" style="display:none" title="Clear this fortnight back to empty">
+      <button class="btn" id="clearFnBtn" onclick="clearCycle()" style="display:none" title="Delete everything in this fortnight">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Clear
       </button>
       <span class="divider"></span>
@@ -2457,8 +2457,41 @@ function importBackup(input){
 }
 
 /* ---------- Auto / Manual mode ---------- */
+// the 14 ISO day keys of a cycle, in order — every per-day store is keyed by these
+function cycleDayKeys(off){
+  const si=document.getElementById('startDate').value;
+  const base=addDays(getMonday(si?new Date(si):new Date()),off*14);
+  return Array.from({length:14},(_,d)=>isoKey(addDays(base,d)));
+}
 // ISO date of a cycle's start Monday — the key for committed fortnights / seeds
-function cycleStartISO(off){const si=document.getElementById('startDate').value;return isoKey(addDays(getMonday(si?new Date(si):new Date()),off*14));}
+function cycleStartISO(off){return cycleDayKeys(off)[0];}
+// everything that lives inside ONE fortnight: the manager's entries, the support
+// staff's, the flags and comments on those days, and the generated grid itself.
+// Counted so Clear can say exactly what it is about to remove.
+function cycleTally(off){
+  const keys=cycleDayKeys(off),gk=keys[0];
+  let entries=0,staffEntries=0,flagged=0,noted=0;
+  const n=o=>o?Object.keys(o).length:0;
+  for(const k of keys){
+    entries+=n(overrides[k]);staffEntries+=n(staffShifts[k]);
+    flagged+=n(flags[k]);noted+=n(notes[k]);
+  }
+  const generated=!!frozen[gk]||!!committedCycles[gk];
+  return {keys,gk,entries,staffEntries,flagged,noted,generated,
+          total:entries+staffEntries+flagged+noted+(generated?1:0)};
+}
+// human list of what a clear would remove ("12 RN entries, 2 flags, …")
+function cycleTallyParts(t){
+  const p=[],pl=(n,one,many)=>`${n} ${n===1?one:many}`;
+  if(t.entries)p.push(pl(t.entries,'RN entry','RN entries'));
+  if(t.staffEntries)p.push(pl(t.staffEntries,'support-staff entry','support-staff entries'));
+  if(t.flagged)p.push(pl(t.flagged,'flag','flags'));
+  if(t.noted)p.push(pl(t.noted,'comment','comments'));
+  if(t.generated)p.push('the generated duties');
+  return p;
+}
+// "a", "a and b", "a, b and c"
+function joinList(p){return p.length<2?(p[0]||''):p.slice(0,-1).join(', ')+' and '+p[p.length-1];}
 // set the mode explicitly from the Auto|Manual segmented control
 function setMode(manual){
   if(manualMode===manual)return;                 // already there — no-op
@@ -2482,12 +2515,23 @@ function generateFortnight(){
   render();saveState();
   toast('Fortnight generated');
 }
-function clearFortnight(){
-  const gk=cycleStartISO(cycleOffset),before=snapshot();
-  delete committedCycles[gk];delete cycleSeeds[gk];delete frozen[gk];
-  pushHistory('Cleared fortnight',before);
+// Wipe this fortnight back to a blank sheet: the entries you typed, the flags and
+// comments on those 14 days, and the generated grid. Nothing outside the cycle is
+// touched, and because every store it clears is an `undo` field of PERSIST, the
+// snapshot taken here lets Undo (Ctrl+Z) put all of it back exactly.
+function clearCycle(){
+  const t=cycleTally(cycleOffset);
+  if(!t.total){toast('This fortnight is already empty');return;}
+  const parts=cycleTallyParts(t);
+  const span=`${fmt(sched.days[0])} – ${fmt(sched.days[13])}`;
+  if(!confirm(`Clear this fortnight (${span})?\n\nThis deletes ${joinList(parts)}.\n\n`
+    +`Only these 14 days are affected. Undo (Ctrl+Z) puts everything back.`))return;
+  const before=snapshot();
+  for(const k of t.keys){delete overrides[k];delete staffShifts[k];delete flags[k];delete notes[k];}
+  delete frozen[t.gk];delete committedCycles[t.gk];delete cycleSeeds[t.gk];
+  pushHistory(`Cleared fortnight ${span} (${joinList(parts)})`,before);
   render();saveState();
-  toast('Fortnight cleared — add requests, then Generate');
+  toast('Fortnight cleared — Undo (Ctrl+Z) restores it');
 }
 function updateModeUI(){
   const on=manualMode,committed=on&&!!committedCycles[cycleStartISO(cycleOffset)];
@@ -2497,8 +2541,18 @@ function updateModeUI(){
   seg('segAuto',!on);seg('segManual',on);
   show('regenBtn',!on);                // Auto: normal Regenerate
   show('genBtn',on);                   // Manual: Generate (or Regenerate this fortnight)
-  show('clearFnBtn',on&&committed);    // Manual + generated: Clear back to empty
+  show('clearFnBtn',on);               // Manual: Clear this fortnight, generated or not
   set('genLbl',committed?'Regenerate':'Generate');
+  // keep Clear honest: greyed on an empty fortnight, and its tooltip names
+  // exactly what it would delete
+  const c=document.getElementById('clearFnBtn');
+  if(c&&on){
+    const t=cycleTally(cycleOffset),parts=cycleTallyParts(t);
+    c.disabled=!t.total;
+    c.classList.toggle('is-disabled',!t.total);
+    c.title=t.total?`Delete ${joinList(parts)} in this fortnight — Undo puts it all back`
+                   :'This fortnight is already empty';
+  }
 }
 // changing the date re-anchors cycle 0 to that Monday, then jumps to today's cycle
 document.getElementById('startDate').addEventListener('change',function(){
